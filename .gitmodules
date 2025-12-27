@@ -1,0 +1,6 @@
+[submodule "model/gemma3-finetunning"]
+	path = model/gemma3-finetunning
+	url = https://github.com/deimagjas/machinelearning
+[submodule "app/agents-templates"]
+	path = app/agents-templates
+	url = https://github.com/deimagjas/agents-templates
