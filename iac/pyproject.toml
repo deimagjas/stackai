@@ -1,0 +1,10 @@
+[project]
+name = "iac"
+version = "0.1.0"
+description = "vLLM for Mac"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mlx-lm>=0.30.0",
+    "mlx>=0.30.4",
+]
