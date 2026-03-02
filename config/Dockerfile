@@ -81,6 +81,7 @@ RUN apk add --no-cache \
     tar \
     gzip \
     libgcc \
+    tmux \
     nodejs \
     npm \
     python3 \
@@ -101,6 +102,15 @@ COPY --from=builder /root/.cargo/bin/btm       /usr/local/bin/btm
 # Claude Code CLI
 # -----------------------------------------------------------------------------
 RUN npm install -g @anthropic-ai/claude-code
+
+# -----------------------------------------------------------------------------
+# OpenCode — binario precompilado desde GitHub releases
+# El script oficial detecta arquitectura automáticamente (arm64 para M4)
+# -----------------------------------------------------------------------------
+RUN curl -fsSL https://opencode.ai/install | bash \
+    && mv /root/.opencode/bin/opencode /usr/local/bin/opencode \
+    && chmod 755 /usr/local/bin/opencode \
+    && rm -rf /root/.opencode
 
 # -----------------------------------------------------------------------------
 # Aliases
