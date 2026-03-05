@@ -60,7 +60,7 @@ LABEL description="Imagen ligera para agentes Claude Code con herramientas Rust"
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV TERM=xterm-256color
-ENV PATH="/usr/local/bin:$PATH"
+ENV PATH="/root/.local/bin:/usr/local/bin:$PATH"
 ENV BAT_PAGER=""
 ENV BAT_STYLE="numbers,changes,header"
 
@@ -99,9 +99,14 @@ COPY --from=builder /root/.cargo/bin/procs     /usr/local/bin/procs
 COPY --from=builder /root/.cargo/bin/btm       /usr/local/bin/btm
 
 # -----------------------------------------------------------------------------
-# Claude Code CLI
+# Claude Code CLI — instalación nativa oficial
+# Instala el lanzador en /root/.local/bin/claude (ya en PATH)
+# Las credenciales y configuración llegan por volumen (-v ~/.claude:/root/.claude)
+# No se necesita symlink: el script nativo instala directamente en ~/.local/bin
 # -----------------------------------------------------------------------------
-RUN npm install -g @anthropic-ai/claude-code
+RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+    && yes | bash /tmp/claude-install.sh \
+    && rm -f /tmp/claude-install.sh
 
 # -----------------------------------------------------------------------------
 # OpenCode — binario precompilado desde GitHub releases
