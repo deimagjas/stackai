@@ -11,20 +11,21 @@
 #   Alpine usa musl, cuyo binario claude ≥ 2.1.63 requiere posix_getdents,
 #   símbolo exclusivo de glibc que no existe en ninguna versión de musl.
 #   Wolfi es glibc-based con footprint comparable a Alpine (~5 MB base).
+#
+# Multi-agente:
+#   Cada contenedor es efímero (--rm). El CLAUDE_CODE_OAUTH_TOKEN en env
+#   es suficiente para autenticar — no se necesita montar ~/.claude del host.
+#   El entrypoint limpia locks y procesos MCP antes de cada inicio.
 # =============================================================================
 
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
-# Chainguard Rust dev — tiene cargo preinstalado, hardened, ARM64
-# Esta imagen NO llega a producción
-# ─────────────────────────────────────────────────────────────────────────────
 FROM --platform=linux/arm64 cgr.dev/chainguard/rust:latest-dev AS builder
 
 USER root
 ENV HOME=/root \
     PATH="/root/.cargo/bin:$PATH"
 
-# Compilar todas las herramientas en un solo RUN para aprovechar cache de capas
 RUN cargo install \
         ripgrep \
         fd-find \
@@ -37,9 +38,6 @@ RUN cargo install \
 
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
-# Chainguard Wolfi — hardened, minimal, glibc-based, ARM64
-# Sin Rust, sin build tools — imagen mínima
-# ─────────────────────────────────────────────────────────────────────────────
 FROM --platform=linux/arm64 cgr.dev/chainguard/wolfi-base:latest AS runtime
 
 LABEL maintainer="claude-code-agent" \
@@ -51,13 +49,10 @@ ENV LANG=C.UTF-8 \
     TERM=xterm-256color \
     PATH="/root/.local/bin:/usr/local/bin:$PATH" \
     BAT_PAGER="" \
-    BAT_STYLE="numbers,changes,header"
+    BAT_STYLE="numbers,changes,header" \
+    # Deshabilitar auto-update — en contenedores es innecesario y puede romper la imagen
+    CLAUDE_CODE_DISABLE_AUTOUPDATE=1
 
-# Dependencias runtime — solo lo necesario, sin dev tools
-# Notas de nombres en Wolfi (difieren de Alpine):
-#   tar      → no existe standalone; lo provee busybox (/usr/bin/tar)
-#   nodejs   → requiere versión explícita (nodejs-22 = LTS actual)
-#   python3  → requiere versión explícita (python-3.13 = latest stable)
 RUN apk add --no-cache \
         bash \
         busybox \
@@ -76,7 +71,6 @@ RUN apk add --no-cache \
         python-3.13 \
         py3-pip
 
-# Copiar binarios compilados desde el stage builder
 COPY --from=builder /root/.cargo/bin/rg     /usr/local/bin/rg
 COPY --from=builder /root/.cargo/bin/fd     /usr/local/bin/fd
 COPY --from=builder /root/.cargo/bin/bat    /usr/local/bin/bat
@@ -85,19 +79,18 @@ COPY --from=builder /root/.cargo/bin/dust   /usr/local/bin/dust
 COPY --from=builder /root/.cargo/bin/procs  /usr/local/bin/procs
 COPY --from=builder /root/.cargo/bin/btm    /usr/local/bin/btm
 
-# Claude Code CLI — glibc runtime detectado automáticamente por el instalador
-# Descargará claude-linux-arm64 (glibc) en vez del binario musl problemático
+# Claude Code CLI
 RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
     && yes | bash /tmp/claude-install.sh \
     && rm -f /tmp/claude-install.sh
 
-# OpenCode — binario precompilado, arquitectura detectada automáticamente
+# OpenCode
 RUN curl -fsSL https://opencode.ai/install | bash \
     && mv /root/.opencode/bin/opencode /usr/local/bin/opencode \
     && chmod 755 /usr/local/bin/opencode \
     && rm -rf /root/.opencode
 
-# Aliases Rust — disponibles en shells interactivas
+# Aliases Rust
 RUN cat > /etc/profile.d/rust-aliases.sh << 'EOF'
 alias grep='rg --smart-case --follow'
 alias find='fd --follow'
@@ -119,8 +112,14 @@ RUN git config --global init.defaultBranch main \
     && git config --global core.editor "true" \
     && git config --global advice.detachedHead false
 
-# Directorio de trabajo — aquí se monta el volumen del repo
+# ── Entrypoint de limpieza para multi-agente ──────────────────────────────────
+# Limpia lock files y procesos MCP huérfanos antes de cada inicio
+# Esto permite lanzar N contenedores con --rm sin conflictos entre sesiones
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 WORKDIR /workspace
 
 SHELL ["/bin/bash", "--login", "-c"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/bin/bash", "--login"]
