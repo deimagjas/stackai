@@ -89,6 +89,8 @@ RUN curl -fsSL https://opencode.ai/install | bash \
     && mv /root/.opencode/bin/opencode /usr/local/bin/opencode \
     && chmod 755 /usr/local/bin/opencode \
     && rm -rf /root/.opencode
+# OpenSpec
+RUN npm install -g @fission-ai/openspec@latest
 
 # Aliases Rust
 RUN cat > /etc/profile.d/rust-aliases.sh << 'EOF'

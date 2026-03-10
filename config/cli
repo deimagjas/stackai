@@ -1,9 +1,0 @@
-container run -it --rm \
-  --name qubits-team \
-  --cpus 8 \
-  --memory 12G \
-  -v ./:/workspace \
-  -v stackai_worktrees_volume:/worktrees
-  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  -e CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 \
-  code-agents
