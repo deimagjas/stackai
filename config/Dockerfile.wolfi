@@ -66,6 +66,7 @@ RUN apk add --no-cache \
         unzip \
         gzip \
         tmux \
+        gh \
         nodejs-22 \
         npm \
         python-3.13 \
