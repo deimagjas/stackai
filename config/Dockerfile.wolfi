@@ -1,0 +1,128 @@
+# =============================================================================
+# Claude Code — Multistage Chainguard Wolfi + Rust tools
+# Hardened · Minimal · ARM64 (Apple Silicon / M4)
+#
+# Stage 1 — builder  : Chainguard Rust dev → compila herramientas Rust
+# Stage 2 — runtime  : Chainguard Wolfi   → binarios + glibc + hardened
+#
+# Base: cgr.dev/chainguard — glibc, CVE-free por diseño, signed, ARM64
+#
+# Por qué Wolfi en vez de Alpine:
+#   Alpine usa musl, cuyo binario claude ≥ 2.1.63 requiere posix_getdents,
+#   símbolo exclusivo de glibc que no existe en ninguna versión de musl.
+#   Wolfi es glibc-based con footprint comparable a Alpine (~5 MB base).
+#
+# Multi-agente:
+#   Cada contenedor es efímero (--rm). El CLAUDE_CODE_OAUTH_TOKEN en env
+#   es suficiente para autenticar — no se necesita montar ~/.claude del host.
+#   El entrypoint limpia locks y procesos MCP antes de cada inicio.
+# =============================================================================
+
+
+# ── Stage 1: builder ──────────────────────────────────────────────────────────
+FROM --platform=linux/arm64 cgr.dev/chainguard/rust:latest-dev AS builder
+
+USER root
+ENV HOME=/root \
+    PATH="/root/.cargo/bin:$PATH"
+
+RUN cargo install \
+        ripgrep \
+        fd-find \
+        bat \
+        eza \
+        du-dust \
+        procs \
+        bottom \
+    && rm -rf /root/.cargo/registry /root/.cargo/git
+
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+FROM --platform=linux/arm64 cgr.dev/chainguard/wolfi-base:latest AS runtime
+
+LABEL maintainer="claude-code-agent" \
+      description="Hardened Claude Code agent — Chainguard Wolfi + Rust tools" \
+      org.opencontainers.image.base.name="cgr.dev/chainguard/wolfi-base"
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    TERM=xterm-256color \
+    PATH="/root/.local/bin:/usr/local/bin:$PATH" \
+    BAT_PAGER="" \
+    BAT_STYLE="numbers,changes,header" \
+    # Deshabilitar auto-update — en contenedores es innecesario y puede romper la imagen
+    CLAUDE_CODE_DISABLE_AUTOUPDATE=1
+
+RUN apk add --no-cache \
+        bash \
+        busybox \
+        curl \
+        wget \
+        git \
+        git-lfs \
+        openssh-client \
+        ca-certificates \
+        jq \
+        unzip \
+        gzip \
+        tmux \
+        gh \
+        nodejs-22 \
+        npm \
+        python-3.13 \
+        py3-pip
+
+COPY --from=builder /root/.cargo/bin/rg     /usr/local/bin/rg
+COPY --from=builder /root/.cargo/bin/fd     /usr/local/bin/fd
+COPY --from=builder /root/.cargo/bin/bat    /usr/local/bin/bat
+COPY --from=builder /root/.cargo/bin/eza    /usr/local/bin/eza
+COPY --from=builder /root/.cargo/bin/dust   /usr/local/bin/dust
+COPY --from=builder /root/.cargo/bin/procs  /usr/local/bin/procs
+COPY --from=builder /root/.cargo/bin/btm    /usr/local/bin/btm
+
+# Claude Code CLI
+RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+    && yes | bash /tmp/claude-install.sh \
+    && rm -f /tmp/claude-install.sh
+
+# OpenCode
+RUN curl -fsSL https://opencode.ai/install | bash \
+    && mv /root/.opencode/bin/opencode /usr/local/bin/opencode \
+    && chmod 755 /usr/local/bin/opencode \
+    && rm -rf /root/.opencode
+# OpenSpec
+RUN npm install -g @fission-ai/openspec@latest
+
+# Aliases Rust
+RUN cat > /etc/profile.d/rust-aliases.sh << 'EOF'
+alias grep='rg --smart-case --follow'
+alias find='fd --follow'
+alias cat='bat --paging=never'
+alias ls='eza'
+alias ll='eza -la --git'
+alias la='eza -la'
+alias lt='eza --tree --level=2'
+alias du='dust'
+alias ps='procs'
+alias top='btm'
+EOF
+
+RUN echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.bashrc \
+    && echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.profile
+
+# Git config base
+RUN git config --global init.defaultBranch main \
+    && git config --global core.editor "true" \
+    && git config --global advice.detachedHead false
+
+# ── Entrypoint de limpieza para multi-agente ──────────────────────────────────
+# Limpia lock files y procesos MCP huérfanos antes de cada inicio
+# Esto permite lanzar N contenedores con --rm sin conflictos entre sesiones
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+WORKDIR /workspace
+
+SHELL ["/bin/bash", "--login", "-c"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash", "--login"]
