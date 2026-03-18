@@ -1,22 +1,80 @@
 #!/bin/bash
-# Entrypoint mínimo — solo copia credenciales desde los mounts del host
+# Entrypoint — copia credenciales y soporta modo agente headless
+#
+# Modo interactivo (default):
+#   entrypoint.sh                          → bash interactivo
+#   entrypoint.sh <cmd> [args...]          → exec <cmd> [args...]
+#
+# Modo agente headless:
+#   entrypoint.sh --worktree <branch> --task "<prompt>"
+#   entrypoint.sh --worktree <branch> --task "<prompt>" --project <name>
+#
+# Volúmenes esperados:
+#   -v <git-root>:/workspace               → repo principal (read/write)
+#   -v <parent>/.worktrees:/worktrees      → directorio de worktrees
+#   -v ~/.claude:/root/.claudenew:ro       → credenciales host
+#   -v ~/.claude.json:/root/.claudenew.json:ro
 
 set -euo pipefail
 
-# Los mounts vienen de:
-#   -v ~/.claude:/root/.claudenew:ro
-#   -v ~/.claude.json:/root/.claudenew.json:ro
+WORKTREE_BRANCH=""
+AGENT_TASK=""
+PROJECT_NAME=""
+PASSTHROUGH_ARGS=()
 
+# ── Parsear flags del modo agente ──────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --worktree) WORKTREE_BRANCH="$2"; shift 2 ;;
+        --task)     AGENT_TASK="$2";      shift 2 ;;
+        --project)  PROJECT_NAME="$2";    shift 2 ;;
+        *)          PASSTHROUGH_ARGS+=("$1"); shift ;;
+    esac
+done
+
+# ── Copiar credenciales desde mounts del host ──────────────────────────────────
 echo "[entrypoint] Copiando credenciales..."
-
 cp /root/.claudenew.json /root/.claude.json
 mkdir -p /root/.claude
 cp -r /root/.claudenew/. /root/.claude/
+echo "[entrypoint] Credenciales listas."
 
-echo "[entrypoint] Listo."
+# ── Modo agente: worktree + headless ──────────────────────────────────────────
+if [[ -n "$WORKTREE_BRANCH" ]]; then
+    WORKTREE_PATH="/worktrees/${WORKTREE_BRANCH}"
 
-if [ "$#" -eq 0 ]; then
+    echo "[entrypoint] Creando worktree: ${WORKTREE_BRANCH} → ${WORKTREE_PATH}"
+
+    # Crear directorio de destino si no existe
+    mkdir -p "$(dirname "$WORKTREE_PATH")"
+
+    # Añadir worktree (idempotente: si ya existe la rama, simplemente la usa)
+    if git -C /workspace worktree add "$WORKTREE_PATH" -b "$WORKTREE_BRANCH" 2>/dev/null; then
+        echo "[entrypoint] Worktree creado en rama nueva: ${WORKTREE_BRANCH}"
+    elif git -C /workspace worktree add "$WORKTREE_PATH" "$WORKTREE_BRANCH" 2>/dev/null; then
+        echo "[entrypoint] Worktree creado sobre rama existente: ${WORKTREE_BRANCH}"
+    else
+        echo "[entrypoint] ERROR: no se pudo crear el worktree para '${WORKTREE_BRANCH}'" >&2
+        exit 1
+    fi
+
+    cd "$WORKTREE_PATH"
+    echo "[entrypoint] Directorio de trabajo: $(pwd)"
+
+    if [[ -n "$AGENT_TASK" ]]; then
+        echo "[entrypoint] Iniciando agente Claude (headless)..."
+        echo "[entrypoint] Tarea: ${AGENT_TASK}"
+        echo "---"
+        exec claude --dangerously-skip-permissions -p "$AGENT_TASK"
+    else
+        # Worktree listo pero sin tarea: shell interactivo en el worktree
+        exec /bin/bash --login
+    fi
+fi
+
+# ── Modo interactivo (comportamiento original) ─────────────────────────────────
+if [[ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]]; then
     exec /bin/bash --login
 else
-    exec "$@"
+    exec "${PASSTHROUGH_ARGS[@]}"
 fi
