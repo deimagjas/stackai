@@ -1,0 +1,57 @@
+{
+  "skill_name": "spawn-agent",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm working on my stackai project and need you to spawn a virtual agent to implement OAuth2 authentication with JWT tokens in the API. Use branch feat/oauth2.",
+      "expected_output": "Claude constructs a feature-type task prompt, sanitizes the branch name (feat/oauth2 → feat-oauth2 for container naming), identifies the git root, sets WORKTREES_DIR to the parent of git root + /.worktrees, and runs container run -d --rm with correct flags: --worktree feat/oauth2, --task containing the feature prompt, -v mounts for workspace and worktrees, -e for CLAUDE_CODE_OAUTH_TOKEN. Confirms the container started and shows how to follow logs.",
+      "files": [],
+      "expectations": [
+        "Runs `container run -d` (detached mode, not -it)",
+        "Uses --worktree feat/oauth2 argument passed to entrypoint",
+        "Sanitizes branch to feat-oauth2 in the container name",
+        "Mounts a worktrees directory as a separate -v volume (not a named volume)",
+        "Passes CLAUDE_CODE_OAUTH_TOKEN as an environment variable",
+        "Task prompt is feature-type: mentions 'senior software engineer' or equivalent, asks for clean/tested code",
+        "Shows command to follow logs after spawning (container logs -f or equivalent)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Spawn an agent to write unit tests for the payment service module. Branch: test/payment-service",
+      "expected_output": "Claude builds a test-type task prompt (QA engineer framing, coverage focus), launches the container in detached mode with the test/payment-service branch. Container name sanitized to test-payment-service.",
+      "files": [],
+      "expectations": [
+        "Runs `container run -d` (detached mode)",
+        "Uses --worktree test/payment-service",
+        "Task prompt has testing focus: mentions coverage, edge cases, or 'QA engineer'",
+        "Does NOT use a feature-type or mutation-type prompt",
+        "Container name derived from test/payment-service (sanitized, no /)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Show me what agents are currently running. Also list the worktrees that exist.",
+      "expected_output": "Claude runs container list filtered by the project prefix (qubits-team), and also lists the worktrees directory. Shows the results in a readable format.",
+      "files": [],
+      "expectations": [
+        "Runs `container list` (not `container ps` or other docker-style commands)",
+        "Filters output by project prefix (e.g., grep qubits-team)",
+        "Also shows worktrees on disk (ls on WORKTREES_DIR or equivalent)",
+        "Does NOT attempt to spawn a new agent"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Check what the feat/oauth2 agent is doing right now. Give me a summary of its progress.",
+      "expected_output": "Claude runs container logs for the feat/oauth2 agent (sanitized to feat-oauth2 in name), reads the output, and provides a plain-language summary of the agent's progress — not just a raw log dump.",
+      "files": [],
+      "expectations": [
+        "Runs `container logs` (not container run or container list)",
+        "Uses correct sanitized container name: includes feat-oauth2",
+        "Provides a summary or interpretation of logs, not just raw output",
+        "Does NOT spawn a new container"
+      ]
+    }
+  ]
+}
