@@ -93,7 +93,9 @@ export CLAUDE_CONTAINER_OAUTH_TOKEN=<tu-oauth-token>
    a) Copia credenciales desde mounts host → /root/.claude/
    b) git -C /workspace worktree add /worktrees/$BRANCH -b $BRANCH
    c) cd /worktrees/$BRANCH
-   d) claude --dangerously-skip-permissions -p "$TASK"
+   d) Copia credenciales a /home/agent/.claude/ + chown agent
+   e) su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "$TASK"
+   (Claude requiere uid != 0 para usar --dangerously-skip-permissions)
          │
          ▼
 7. Claude en el agente trabaja autónomamente:
@@ -361,6 +363,7 @@ Docs completos: https://github.com/apple/container/blob/main/docs/command-refere
 | `ERROR: export AGENTS_HOME` | Variable no seteada | `export AGENTS_HOME=~/agents` en `~/.zshrc` |
 | `ERROR: export CLAUDE_CONTAINER_OAUTH_TOKEN` | Token no seteado | `export CLAUDE_CONTAINER_OAUTH_TOKEN=<token>` |
 | `Image not found: claude-agent:wolfi` | Imagen no construida | `cd config && make build` |
-| Worktree creation failed | Rama ya existe en el repo | El entrypoint intenta `worktree add` con rama existente — funciona |
-| Container exits immediately | Error en entrypoint | `container logs <name>` para ver el error |
+| `--dangerously-skip-permissions cannot be used with root` | Imagen vieja sin usuario `agent` | `cd config && make build` para reconstruir |
+| Worktree creation failed (branch + dir ya existen) | Intento anterior dejó restos | `git worktree prune && git branch -D <branch> && rm -rf $AGENTS_HOME/<branch>` |
+| Container exits immediately | Error en entrypoint | `container logs <name>` para ver el error (sin `--rm` para preservar logs) |
 | Nombre de contenedor duplicado | Agente ya corriendo | `container list` para verificar; `container stop <name>` para liberarlo |

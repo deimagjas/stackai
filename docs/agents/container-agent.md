@@ -134,6 +134,8 @@ container run -d --rm claude-agent:wolfi \
 
 **Por qué `--dangerously-skip-permissions`:** En modo headless no hay usuario interactivo para aprobar permisos. El contenedor es un entorno sandboxed con acceso solo al worktree montado, por lo que es seguro saltarse las confirmaciones.
 
+**Por qué correr como `agent` (non-root):** Claude CLI bloquea `--dangerously-skip-permissions` cuando el proceso corre como `root` (uid 0). El entrypoint usa `su-exec` para hacer drop al usuario `agent` antes de ejecutar Claude.
+
 IMPORTANTE: **Por qué el worktree se crea dentro del contenedor:** Git necesita acceso al repositorio para registrar el worktree en `.git/worktrees/`. Como el repo está montado en `/workspace` dentro del contenedor, el worktree debe crearse desde allí. Si se creara desde el host directamente, el path registrado en git sería el path del host (`/Users/...`), que no existiría dentro del contenedor.
 
 ---
@@ -331,10 +333,49 @@ Los mounts son **read-only** desde el host para evitar que el contenedor modifiq
 
 ---
 
+## Usuario no-root para modo headless
+
+Claude CLI bloquea `--dangerously-skip-permissions` cuando el proceso corre como `root` (uid 0). La imagen incluye un usuario `agent` (no-root) para el modo headless.
+
+### Cambios en la imagen
+
+```dockerfile
+# su-exec: drop de privilegios con semántica exec (estándar Docker)
+RUN apk add --no-cache su-exec
+
+# Usuario agent (non-root)
+RUN addgroup -S agent \
+    && adduser -S -G agent -h /home/agent -s /bin/bash agent \
+    && ln -sf /root/.local/bin/claude /usr/local/bin/claude
+```
+
+### Flujo de credenciales para modo headless
+
+```
+/root/.claude/         (copiado por entrypoint desde mount host)
+       │
+       └─► /home/agent/.claude/   (copiado + chown → agent)
+                  │
+           su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "..."
+```
+
+El entrypoint:
+1. Copia credenciales a `/root/.claude/` (como siempre)
+2. Las copia también a `/home/agent/.claude/` con `chown agent`
+3. Hace `chown agent` en el worktree
+4. Ejecuta `su-exec agent` para hacer drop a uid no-root antes de llamar a Claude
+
+### Por qué `su-exec` y no `su` o `runuser`
+
+`su-exec` hace un `execvp` directo (reemplaza el proceso, no crea un subshell). Esto preserva las señales, el PID, y evita el overhead de un shell adicional. Es el estándar para entrypoints de contenedores Docker.
+
+---
+
 ## Notas de seguridad
 
 - Los contenedores corren con `--rm` (efímeros) — no persisten estado fuera del worktree
-- Las credenciales se montan read-only
+- Las credenciales se montan read-only desde el host
 - `CLAUDE_CODE_DISABLE_AUTOUPDATE=1` evita que Claude descargue actualizaciones dentro del contenedor
 - Cada contenedor tiene acceso solo al repo montado en `/workspace` y a `$AGENTS_HOME` en `/worktrees`
 - `--dangerously-skip-permissions` es seguro en este contexto porque el filesystem accesible está limitado a los volúmenes montados
+- El modo headless corre como usuario `agent` (non-root) por diseño

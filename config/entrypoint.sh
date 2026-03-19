@@ -65,7 +65,17 @@ if [[ -n "$WORKTREE_BRANCH" ]]; then
         echo "[entrypoint] Iniciando agente Claude (headless)..."
         echo "[entrypoint] Tarea: ${AGENT_TASK}"
         echo "---"
-        exec claude --dangerously-skip-permissions -p "$AGENT_TASK"
+        # Make claude's install path traversable for non-root users (installed under /root/)
+        # go+x required: agent is in group root (gid=0), so group bits apply, not others bits
+        chmod go+x /root /root/.local /root/.local/share 2>/dev/null || true
+        find /root/.local/share/claude -type d -exec chmod go+x {} + 2>/dev/null || true
+        find /root/.local/share/claude/versions -maxdepth 1 -type f -exec chmod 755 {} + 2>/dev/null || true
+        # Copy credentials to agent user's home (claude requires non-root for --dangerously-skip-permissions)
+        cp -r /root/.claude/. /home/agent/.claude/ 2>/dev/null || true
+        cp /root/.claude.json /home/agent/.claude.json 2>/dev/null || true
+        chown -R agent:agent /home/agent/.claude /home/agent/.claude.json 2>/dev/null || true
+        chown -R agent:agent "$WORKTREE_PATH"
+        exec su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "$AGENT_TASK"
     else
         # Worktree listo pero sin tarea: shell interactivo en el worktree
         exec /bin/bash --login

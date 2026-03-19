@@ -110,10 +110,36 @@ EOF
 RUN echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.bashrc \
     && echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.profile
 
-# Git config base
+# Git config base (root)
 RUN git config --global init.defaultBranch main \
     && git config --global core.editor "true" \
     && git config --global advice.detachedHead false
+
+# Non-root user for headless Claude agents
+# --dangerously-skip-permissions is blocked when running as root (uid 0)
+RUN addgroup -S agent \
+    && adduser -S -G agent -h /home/agent -s /bin/bash agent \
+    && mkdir -p /home/agent/.claude \
+    && chown -R agent:agent /home/agent
+
+# Make claude's install tree traversable for non-root users
+# (install script places claude under /root/.local/ which is mode 700 by default)
+# NOTE: agent user is in group root (gid=0), so go+x is required — o+x alone
+#       is overridden by the group bits (---) which take precedence for group members
+RUN chmod go+x /root /root/.local /root/.local/share 2>/dev/null || true \
+    && find /root/.local/share/claude -type d -exec chmod go+x {} + 2>/dev/null || true \
+    && find /root/.local/share/claude/versions -maxdepth 1 -type f -exec chmod 755 {} + 2>/dev/null || true
+
+# Git config for agent user
+RUN printf '[init]\n\tdefaultBranch = main\n[core]\n\teditor = true\n[advice]\n\tdetachedHead = false\n[user]\n\temail = agent@container\n\tname = Claude Agent\n' \
+    > /home/agent/.gitconfig \
+    && chown agent:agent /home/agent/.gitconfig
+
+# su-exec equivalent (not available in Wolfi apk repos)
+# Drops to the specified user via os.setuid/setgid then exec — same semantics as su-exec
+RUN printf '#!/usr/bin/env python3\nimport os, sys, pwd\npw = pwd.getpwnam(sys.argv[1])\nos.setgid(pw.pw_gid)\nos.setuid(pw.pw_uid)\nos.execvp(sys.argv[2], sys.argv[2:])\n' \
+    > /usr/local/bin/su-exec \
+    && chmod +x /usr/local/bin/su-exec
 
 # ── Entrypoint de limpieza para multi-agente ──────────────────────────────────
 # Limpia lock files y procesos MCP huérfanos antes de cada inicio
