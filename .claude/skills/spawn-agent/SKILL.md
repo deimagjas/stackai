@@ -186,6 +186,30 @@ container logs -f "${CONTAINER_NAME}"
 Read the logs and **summarize the agent's progress** — don't just dump raw output.
 Tell the user: what the agent is working on, what it has done, what step it's at.
 
+## Integrating agent work
+
+When an agent finishes, its commits already exist in the **host repo** — the
+container volume mount (`-v "${GIT_ROOT}:/workspace"`) means host and container
+share the same `.git` directory. The agent's branch is a regular local branch.
+
+**Always use `git merge` to integrate agent work. Never copy files from the
+worktree directory.**
+
+```bash
+# From the target branch:
+git merge <agent-branch>          # e.g. git merge test/shellspec-entrypoint
+
+# Or for multiple agents into a new branch:
+git checkout -b <combined-branch>
+git merge <agent-branch-1>
+git merge <agent-branch-2>
+```
+
+> **Note:** The worktree's `.git` file contains a container path
+> (`/workspace/.git/worktrees/...`) so `git log` run *from the worktree
+> directory on the host* will fail. This does **not** mean the branch is broken
+> — verify with `git log <branch>` from the main repo instead.
+
 ## Stopping an agent
 
 ```bash
