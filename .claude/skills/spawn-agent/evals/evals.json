@@ -52,6 +52,32 @@
         "Provides a summary or interpretation of logs, not just raw output",
         "Does NOT spawn a new container"
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "The feat/oauth2 agent finished. Merge its work into my current branch.",
+      "expected_output": "Claude uses git merge feat/oauth2 from the current branch. Never copies files from the worktree directory. Confirms the merge was successful and summarizes what was integrated. If conflicts arise, reports them to the user.",
+      "files": [],
+      "expectations": [
+        "Runs `git merge feat/oauth2` (not cp, rsync, or checkout of individual files)",
+        "Does NOT copy files from the worktree directory",
+        "Does NOT run git log from the worktree directory on host (container path in .git)",
+        "Reports conflicts to user if any, instead of resolving silently",
+        "Does NOT delete the agent branch or worktree unless user asks"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Both agents are done — feat/oauth2 and test/auth-tests. Create a branch called integration/auth and merge both into it.",
+      "expected_output": "Claude creates a new branch integration/auth, then merges feat/oauth2 and test/auth-tests sequentially using git merge. Never copies files from worktree directories. Reports success and shows a summary of the combined branch.",
+      "files": [],
+      "expectations": [
+        "Runs `git checkout -b integration/auth` to create the combined branch",
+        "Merges each branch sequentially with `git merge` (not a single squash or cherry-pick)",
+        "Does NOT copy files from worktree directories",
+        "Stops and reports to user if a conflict occurs during any merge",
+        "Does NOT delete original agent branches unless user explicitly asks"
+      ]
     }
   ]
 }
