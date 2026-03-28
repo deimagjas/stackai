@@ -39,11 +39,11 @@ jobs:
       - uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: config/Dockerfile
-          failure-threshold: warning
+          failure-threshold: error
       - uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: config/Dockerfile.wolfi
-          failure-threshold: warning
+          failure-threshold: error
 
   docker-build:
     runs-on: ubuntu-latest
