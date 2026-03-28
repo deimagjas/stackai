@@ -122,19 +122,19 @@ RUN curl -fsSL https://opencode.ai/install | bash \
 # Definidos en /etc/profile.d/ para shells interactivas
 # Para uso programático por Claude, complementar con system prompt
 # -----------------------------------------------------------------------------
-RUN cat > /etc/profile.d/rust-aliases.sh << 'EOF'
-# Reemplazos Rust
-alias grep='rg --smart-case --follow'
-alias find='fd --follow'
-alias cat='bat --paging=never'
-alias ls='eza'
-alias ll='eza -la --git'
-alias la='eza -la'
-alias lt='eza --tree --level=2'
-alias du='dust'
-alias ps='procs'
-alias top='btm'
-EOF
+RUN printf '%s\n' \
+    '# Rust replacements' \
+    "alias grep='rg --smart-case --follow'" \
+    "alias find='fd --follow'" \
+    "alias cat='bat --paging=never'" \
+    "alias ls='eza'" \
+    "alias ll='eza -la --git'" \
+    "alias la='eza -la'" \
+    "alias lt='eza --tree --level=2'" \
+    "alias du='dust'" \
+    "alias ps='procs'" \
+    "alias top='btm'" \
+    > /etc/profile.d/rust-aliases.sh
 
 RUN echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.bashrc \
     && echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.profile

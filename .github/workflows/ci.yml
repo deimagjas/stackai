@@ -13,7 +13,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           python-version: "3.13"
-      - run: uv run ruff check app/cli/
+      - run: cd app/cli && uv sync && uv run ruff check .
 
   test-cli:
     runs-on: ubuntu-latest
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install ShellSpec
         run: curl -fsSL https://git.io/shellspec | sh -s -- -y
-      - run: cd config && shellspec
+      - run: cd config && shellspec --shell bash
 
   dockerfile-lint:
     runs-on: ubuntu-latest
