@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from container_cli.commands.agents import follow, list_agents, logs, spawn, stop
 
 
