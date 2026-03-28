@@ -105,9 +105,9 @@ shell: run
 
 spawn: network _check-token
 	@mkdir -p "$(WORKTREES_DIR)"
-	@echo "[spawn] Lanzando agente: $(PROJECT_NAME)-$(CONTAINER_BRANCH)"
+	@echo "[spawn] Launching agent: $(PROJECT_NAME)-$(CONTAINER_BRANCH)"
 	@echo "[spawn] Worktree: $(WORKTREES_DIR)/$(BRANCH)"
-	@echo "[spawn] Tarea: $(TASK)"
+	@echo "[spawn] Task: $(TASK)"
 	container run -d --rm \
 		--name $(PROJECT_NAME)-$(CONTAINER_BRANCH) \
 		--network $(NETWORK) \
@@ -122,16 +122,16 @@ spawn: network _check-token
 		-e CLAUDE_CODE_OAUTH_TOKEN=$${$(HOST_TOKEN_VAR)} \
 		$(IMAGE) \
 		--worktree "$(BRANCH)" --task "$(TASK)"
-	@echo "[spawn] Agente iniciado. Ver logs: make logs-agent BRANCH=$(BRANCH)"
+	@echo "[spawn] Agent started. View logs: make logs-agent BRANCH=$(BRANCH)"
 
 # ── Agent monitoring ──────────────────────────────────────────────────────────
 
 list-agents:
-	@echo "[agents] Contenedores activos para proyecto '$(PROJECT_NAME)':"
-	@container list 2>/dev/null | grep "$(PROJECT_NAME)" || echo "  (ninguno)"
+	@echo "[agents] Active containers for project '$(PROJECT_NAME)':"
+	@container list 2>/dev/null | grep "$(PROJECT_NAME)" || echo "  (none)"
 	@echo ""
-	@echo "[agents] Worktrees en $(WORKTREES_DIR):"
-	@ls -la "$(WORKTREES_DIR)" 2>/dev/null || echo "  (ninguno aún)"
+	@echo "[agents] Worktrees in $(WORKTREES_DIR):"
+	@ls -la "$(WORKTREES_DIR)" 2>/dev/null || echo "  (none yet)"
 
 logs-agent:
 	container logs $(PROJECT_NAME)-$(CONTAINER_BRANCH)
@@ -141,8 +141,8 @@ follow-agent:
 
 stop-agent:
 	@container stop $(PROJECT_NAME)-$(CONTAINER_BRANCH) 2>/dev/null \
-		&& echo "[stop] Agente $(PROJECT_NAME)-$(CONTAINER_BRANCH) detenido." \
-		|| echo "[stop] Agente $(PROJECT_NAME)-$(CONTAINER_BRANCH) no encontrado o ya detenido."
+		&& echo "[stop] Agent $(PROJECT_NAME)-$(CONTAINER_BRANCH) stopped." \
+		|| echo "[stop] Agent $(PROJECT_NAME)-$(CONTAINER_BRANCH) not found or already stopped."
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
