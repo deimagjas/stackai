@@ -63,7 +63,6 @@ Esto toma el valor de `CLAUDE_CONTAINER_OAUTH_TOKEN` en el host y lo inyecta com
 
 - **Aislamiento de sesión:** La sesión del contenedor es independiente de la sesión del host. Si un agente falla o su token expira, tu sesión local de Claude Code no se ve afectada.
 - **Prevención de colisión de credenciales:** Evita que el contenedor sobrescriba o interfiera con los archivos de credenciales en `~/.claude/` del host.
-- **Rotación independiente:** Puedes rotar el token del contenedor sin interrumpir tu flujo de trabajo local.
 
 ---
 
@@ -95,13 +94,18 @@ echo $AGENTS_HOME
 
 ---
 
-## Troubleshooting
+## Cómo obtener `CLAUDE_CODE_OAUTH_TOKEN`
 
-| Síntoma | Causa probable | Solución |
-|---|---|---|
-| `Authentication failed` o `token expired` al iniciar el agente | El token OAuth expiró o fue revocado | Ejecuta `claude login` de nuevo en el host y actualiza `CLAUDE_CONTAINER_OAUTH_TOKEN` con el nuevo token |
-| `Invalid token` o `unauthorized` | Se usó un API key en lugar de un token OAuth, o se copió un token de sesión del host en lugar del token de contenedor | Asegúrate de usar el token generado por `claude login` (OAuth), no un API key de console.anthropic.com |
-| `CLAUDE_CODE_OAUTH_TOKEN not set` dentro del contenedor | `CLAUDE_CONTAINER_OAUTH_TOKEN` no está definida en el host | Verifica con `echo $CLAUDE_CONTAINER_OAUTH_TOKEN`. Si está vacía, expórtala y recarga tu shell |
-| `AGENTS_HOME not set` o worktree no se crea | Variable `AGENTS_HOME` no definida | Exporta `AGENTS_HOME=~/agents` en tu shell y verifica que el directorio exista (`mkdir -p ~/agents`) |
-| `Permission denied` al montar volúmenes o crear worktrees | El directorio de `AGENTS_HOME` no tiene permisos adecuados, o el usuario del contenedor no puede escribir | Verifica permisos con `ls -la $AGENTS_HOME`. Asegúrate de que el directorio sea escribible. Dentro del contenedor, `entrypoint.sh` ajusta ownership con `chown` automáticamente |
-| `Free plan` o `subscription required` | La cuenta de claude.ai no tiene plan Pro o Max activo | Actualiza tu suscripción en [claude.ai](https://claude.ai) → Settings → Subscription |
+Ejecuta el siguiente comando en tu terminal:
+
+```bash
+claude setup-token
+```
+
+Esto genera el token OAuth y lo muestra en la salida. Cópialo y expórtalo:
+
+```bash
+export CLAUDE_CONTAINER_OAUTH_TOKEN=<token-obtenido>
+```
+
+Para hacerlo persistente, agrega la línea anterior a tu `~/.zshrc` o `~/.bashrc`.

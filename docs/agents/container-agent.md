@@ -2,10 +2,7 @@
 
 ## Overview
 
-`claude-agent:wolfi` is an ARM64 (Apple Silicon M4) image built on Chainguard Wolfi. It is specifically designed to run headless instances of Claude Code in Apple Containers, with support for parallel multi-agent operation.
-
-**Why Wolfi and not Alpine:**
-Alpine uses the `musl` library, and the Claude binary ≥ 2.1.63 requires `posix_getdents`, a symbol exclusive to `glibc`. Wolfi is glibc-based with a footprint comparable to Alpine (~5 MB base), without the musl incompatibilities.
+`claude-agent:wolfi` is an ARM64 (Apple Silicon) image built on Chainguard Wolfi. It is specifically designed to run headless instances of Claude Code in Apple Containers, with support for parallel multi-agent operation.
 
 ---
 
@@ -313,20 +310,33 @@ container network delete claude-agent-net
 
 ## Credential flow
 
-```
-Host                              Container
-────────────────────────────────────────────────────────
-~/.claude/        ──(ro mount)──→ /root/.claudenew/
-~/.claude.json    ──(ro mount)──→ /root/.claudenew.json
-                                         │
-                                  entrypoint.sh
-                                  cp -r .claudenew/ → .claude/
-                                  cp .claudenew.json → .claude.json
-                                         │
-                                  Claude Code uses /root/.claude/
-                                  (read/write inside the container)
+```mermaid
+flowchart LR
+    subgraph Host
+        A["~/.claude/"]
+        B["~/.claude.json"]
+        C["CLAUDE_CONTAINER_OAUTH_TOKEN"]
+    end
 
-CLAUDE_CONTAINER_OAUTH_TOKEN  ──(env var)──→ CLAUDE_CODE_OAUTH_TOKEN
+    subgraph Container
+        subgraph "entrypoint.sh"
+            D["/root/.claudenew/ (ro)"]
+            E["/root/.claudenew.json (ro)"]
+            F["cp -r → /root/.claude/"]
+            G["cp → /root/.claude.json"]
+        end
+        H["Claude Code reads /root/.claude/ (rw)"]
+        I["CLAUDE_CODE_OAUTH_TOKEN"]
+    end
+
+    A -- "ro mount" --> D
+    B -- "ro mount" --> E
+    D --> F
+    E --> G
+    F --> H
+    G --> H
+    C -- "-e flag" --> I
+    I --> H
 ```
 
 The mounts are **read-only** from the host to prevent the container from modifying the original credentials. The entrypoint makes a local copy so Claude can write to its configuration directory without affecting the host.
