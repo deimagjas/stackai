@@ -71,19 +71,19 @@ WRAPPER_EOF
   Describe "Argument Parsing"
     It "sets WORKTREE_BRANCH with --worktree flag"
       When run run_entrypoint --worktree my-branch
-      The output should include "Creando worktree: my-branch"
+      The output should include "Creating worktree: my-branch"
       The status should equal 0
     End
 
     It "sets AGENT_TASK with --task flag"
       When run run_entrypoint --worktree test-branch --task "fix the bug"
-      The output should include "Tarea: fix the bug"
+      The output should include "Task: fix the bug"
       The status should equal 0
     End
 
     It "sets PROJECT_NAME with --project flag"
       When run run_entrypoint --worktree test-branch --task "do stuff" --project my-project
-      The output should include "Tarea: do stuff"
+      The output should include "Task: do stuff"
       The status should equal 0
     End
 
@@ -101,21 +101,21 @@ WRAPPER_EOF
 
     It "handles all three flags together"
       When run run_entrypoint --worktree feat/xyz --task "implement feature" --project acme
-      The output should include "Creando worktree: feat/xyz"
-      The output should include "Tarea: implement feature"
+      The output should include "Creating worktree: feat/xyz"
+      The output should include "Task: implement feature"
       The status should equal 0
     End
 
     It "handles empty string values for --worktree"
       When run run_entrypoint --worktree ""
-      The output should not include "Creando worktree"
+      The output should not include "Creating worktree"
       The output should include "[EXEC] exec /bin/bash --login"
       The status should equal 0
     End
 
     It "handles mixed flags and passthrough args"
       When run run_entrypoint --worktree my-branch --task "hello" extra-arg
-      The output should include "Creando worktree: my-branch"
+      The output should include "Creating worktree: my-branch"
       The status should equal 0
     End
   End
@@ -144,13 +144,13 @@ WRAPPER_EOF
 
     It "prints start message"
       When run run_entrypoint
-      The output should include "[entrypoint] Copiando credenciales..."
+      The output should include "[entrypoint] Copying credentials..."
       The status should equal 0
     End
 
     It "prints completion message"
       When run run_entrypoint
-      The output should include "[entrypoint] Credenciales listas."
+      The output should include "[entrypoint] Credentials ready."
       The status should equal 0
     End
   End
@@ -179,7 +179,7 @@ WRAPPER_EOF
 
     It "does not trigger worktree mode without --worktree"
       When run run_entrypoint some-command
-      The output should not include "Creando worktree"
+      The output should not include "Creating worktree"
       The output should include "[EXEC] exec some-command"
       The status should equal 0
     End
@@ -204,7 +204,7 @@ WRAPPER_EOF
     It "creates worktree on new branch via git worktree add -b"
       When run run_entrypoint --worktree feat/new-feature
       The output should include "[MOCK] git -C /workspace worktree add /worktrees/feat/new-feature -b feat/new-feature"
-      The output should include "Worktree creado en rama nueva: feat/new-feature"
+      The output should include "Worktree created on new branch: feat/new-feature"
       The status should equal 0
     End
 
@@ -212,7 +212,7 @@ WRAPPER_EOF
       export GIT_WORKTREE_NEW_BRANCH_SUCCEEDS="false"
       When run run_entrypoint --worktree feat/existing
       The output should include "[MOCK] git -C /workspace worktree add /worktrees/feat/existing feat/existing"
-      The output should include "Worktree creado sobre rama existente: feat/existing"
+      The output should include "Worktree created on existing branch: feat/existing"
       The status should equal 0
     End
 
@@ -220,7 +220,7 @@ WRAPPER_EOF
       export GIT_WORKTREE_NEW_BRANCH_SUCCEEDS="false"
       export GIT_WORKTREE_EXISTING_BRANCH_SUCCEEDS="false"
       When run run_entrypoint --worktree feat/broken
-      The output should include "Creando worktree: feat/broken"
+      The output should include "Creating worktree: feat/broken"
       The stderr should include "ERROR"
       The stderr should include "feat/broken"
       The status should equal 1
@@ -246,7 +246,7 @@ WRAPPER_EOF
 
     It "handles nested branch names with slashes"
       When run run_entrypoint --worktree feature/team/ticket-123
-      The output should include "Creando worktree: feature/team/ticket-123"
+      The output should include "Creating worktree: feature/team/ticket-123"
       The output should include "/worktrees/feature/team/ticket-123"
       The status should equal 0
     End
@@ -259,7 +259,7 @@ WRAPPER_EOF
 
     It "prints working directory after cd"
       When run run_entrypoint --worktree my-branch
-      The output should include "[entrypoint] Directorio de trabajo:"
+      The output should include "[entrypoint] Working directory:"
       The status should equal 0
     End
   End
@@ -313,8 +313,8 @@ WRAPPER_EOF
 
     It "prints agent initialization messages"
       When run run_entrypoint --worktree agent-br --task "implement feature"
-      The output should include "[entrypoint] Iniciando agente Claude (headless)..."
-      The output should include "[entrypoint] Tarea: implement feature"
+      The output should include "[entrypoint] Starting Claude agent (headless)..."
+      The output should include "[entrypoint] Task: implement feature"
       The output should include "---"
       The status should equal 0
     End
@@ -327,7 +327,7 @@ WRAPPER_EOF
 
     It "passes task with special characters"
       When run run_entrypoint --worktree agent-br --task "fix bug #123 & deploy"
-      The output should include "Tarea: fix bug #123 & deploy"
+      The output should include "Task: fix bug #123 & deploy"
       The status should equal 0
     End
   End
@@ -376,40 +376,40 @@ WRAPPER_EOF
 
     It "treats empty WORKTREE_BRANCH as unset (interactive mode)"
       When run run_entrypoint --worktree ""
-      The output should not include "Creando worktree"
+      The output should not include "Creating worktree"
       The output should include "[EXEC] exec /bin/bash --login"
       The status should equal 0
     End
 
     It "handles task with double quotes"
       When run run_entrypoint --worktree br --task 'say "hello world"'
-      The output should include 'Tarea: say "hello world"'
+      The output should include 'Task: say "hello world"'
       The status should equal 0
     End
 
     It "handles task with newline-like content"
       When run run_entrypoint --worktree br --task "line1 line2"
-      The output should include "Tarea: line1 line2"
+      The output should include "Task: line1 line2"
       The status should equal 0
     End
 
     It "handles branch name with dots"
       When run run_entrypoint --worktree release/v1.2.3
-      The output should include "Creando worktree: release/v1.2.3"
+      The output should include "Creating worktree: release/v1.2.3"
       The status should equal 0
     End
 
     It "handles branch name with hyphens and underscores"
       When run run_entrypoint --worktree fix/my_feature-branch
-      The output should include "Creando worktree: fix/my_feature-branch"
+      The output should include "Creating worktree: fix/my_feature-branch"
       The status should equal 0
     End
 
     It "credential copy runs before worktree mode"
       When run run_entrypoint --worktree my-branch --task "work"
-      The output should include "Copiando credenciales"
-      The output should include "Credenciales listas"
-      The output should include "Creando worktree"
+      The output should include "Copying credentials"
+      The output should include "Credentials ready"
+      The output should include "Creating worktree"
       The status should equal 0
     End
   End

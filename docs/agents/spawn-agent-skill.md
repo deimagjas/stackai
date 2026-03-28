@@ -1,12 +1,12 @@
-# spawn-agent — Coordinación de Agentes Virtuales
+# spawn-agent — Virtual Agent Coordination
 
-## Visión general
+## Overview
 
-`spawn-agent` es un skill de Claude Code que convierte al host en un **coordinador de agentes virtuales**. Cada agente virtual es un contenedor Apple Container que corre Claude en modo headless (`claude -p`) dentro de un git worktree aislado, y reporta su progreso a través de `container logs`.
+`spawn-agent` is a Claude Code skill that turns the host into a **virtual agent coordinator**. Each virtual agent is an Apple Container running Claude in headless mode (`claude -p`) inside an isolated git worktree, and reports its progress through `container logs`.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Host (coordinador)                                          │
+│  Host (coordinator)                                          │
 │  Claude Code + spawn-agent skill                             │
 │                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
@@ -19,122 +19,122 @@
 │  └──────────────┘  └──────────────┘  └──────────────┘       │
 │         ↑                  ↑                  ↑              │
 │         └──────────────────┴──────────────────┘              │
-│                  container logs (contexto)                    │
+│                  container logs (context)                     │
 │                                                              │
 │  $AGENTS_HOME/                                               │
-│  ├── feat/oauth2/       ← worktree persiste post-container   │
+│  ├── feat/oauth2/       ← worktree persists post-container   │
 │  ├── test/payment-service/                                   │
 │  └── mutation/api/                                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Por qué worktrees dentro del contenedor
+### Why worktrees inside the container
 
-Git worktrees deben crearse desde dentro de un contexto donde el repositorio sea accesible. El contenedor monta el repo principal en `/workspace` y los worktrees en `/worktrees`. El `entrypoint.sh` ejecuta `git -C /workspace worktree add /worktrees/<branch>` antes de lanzar Claude, garantizando aislamiento completo entre agentes.
+Git worktrees must be created from within a context where the repository is accessible. The container mounts the main repo at `/workspace` and the worktrees at `/worktrees`. The `entrypoint.sh` runs `git -C /workspace worktree add /worktrees/<branch>` before launching Claude, ensuring complete isolation between agents.
 
 ---
 
-## Prerrequisitos
+## Prerequisites
 
-### 1. Imagen Docker
+### 1. Docker Image
 
 ```bash
 cd /path/to/project/config
 make build
 ```
 
-Verifica que exista:
+Verify it exists:
 ```bash
 container image list | grep "claude-agent.*wolfi"
 ```
 
-### 2. Variables de entorno (una vez en `~/.zshrc` o `~/.bashrc`)
+### 2. Environment variables (once in `~/.zshrc` or `~/.bashrc`)
 
 ```bash
-# Directorio donde se almacenarán los worktrees de los agentes
-export AGENTS_HOME=~/agents          # o cualquier ruta persistente
+# Directory where agent worktrees will be stored
+export AGENTS_HOME=~/agents          # or any persistent path
 
-# Token OAuth para que Claude autentique dentro del contenedor
-# ⚠️  Distinto del token de tu sesión host — evita colisiones
-export CLAUDE_CONTAINER_OAUTH_TOKEN=<tu-oauth-token>
+# OAuth token for Claude to authenticate inside the container
+# ⚠️  Different from your host session token — avoids collisions
+export CLAUDE_CONTAINER_OAUTH_TOKEN=<your-oauth-token>
 ```
 
-> **Por qué dos tokens?** Claude Code usa `~/.claude/` del host para la sesión interactiva. Los contenedores reciben el token vía variable de entorno, evitando que dos instancias de Claude compitan por el mismo estado de sesión.
+> **Why two tokens?** Claude Code uses the host's `~/.claude/` for the interactive session. Containers receive the token via environment variable, preventing two Claude instances from competing for the same session state.
 
 ---
 
-## Flujo principal
+## Main Flow
 
 ```
-1. Usuario le pide a Claude una tarea → skill se activa automáticamente
+1. User asks Claude for a task → skill activates automatically
          │
          ▼
-2. Claude verifica AGENTS_HOME y CLAUDE_CONTAINER_OAUTH_TOKEN
-         │ (si faltan → muestra qué exportar)
+2. Claude verifies AGENTS_HOME and CLAUDE_CONTAINER_OAUTH_TOKEN
+         │ (if missing → shows what to export)
          ▼
-3. Claude determina el tipo de agente (feature / test / mutation / explore)
-   y construye el prompt adecuado
+3. Claude determines the agent type (feature / test / mutation / explore)
+   and builds the appropriate prompt
          │
          ▼
-4. Claude calcula variables de ruta:
+4. Claude computes path variables:
    GIT_ROOT       = git rev-parse --show-toplevel
    PROJECT_NAME   = basename $GIT_ROOT
    CONTAINER_NAME = ${PROJECT_NAME}-$(echo $BRANCH | tr '/_ ' '-' | tr A-Z a-z)
          │
          ▼
-5. container run -d --rm  ← detached (no bloquea)
-   • -v $GIT_ROOT:/workspace          ← repo completo (read/write)
-   • -v $AGENTS_HOME:/worktrees       ← destino de worktrees
-   • --worktree $BRANCH               → entrypoint crea el worktree
-   • --task "$TASK"                   → claude -p "$TASK" en el worktree
+5. container run -d --rm  ← detached (non-blocking)
+   • -v $GIT_ROOT:/workspace          ← full repo (read/write)
+   • -v $AGENTS_HOME:/worktrees       ← worktree destination
+   • --worktree $BRANCH               → entrypoint creates the worktree
+   • --task "$TASK"                   → claude -p "$TASK" in the worktree
          │
          ▼
-6. Dentro del contenedor (entrypoint.sh):
-   a) Copia credenciales desde mounts host → /root/.claude/
+6. Inside the container (entrypoint.sh):
+   a) Copies credentials from host mounts → /root/.claude/
    b) git -C /workspace worktree add /worktrees/$BRANCH -b $BRANCH
    c) cd /worktrees/$BRANCH
-   d) Copia credenciales a /home/agent/.claude/ + chown agent
+   d) Copies credentials to /home/agent/.claude/ + chown agent
    e) su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "$TASK"
-   (Claude requiere uid != 0 para usar --dangerously-skip-permissions)
+   (Claude requires uid != 0 to use --dangerously-skip-permissions)
          │
          ▼
-7. Claude en el agente trabaja autónomamente:
-   lee codebase → implementa → commitea → sale
+7. Claude in the agent works autonomously:
+   reads codebase → implements → commits → exits
          │
          ▼
-8. Coordinador puede leer progreso en tiempo real:
+8. Coordinator can read progress in real time:
    container logs -f ${CONTAINER_NAME}
          │
          ▼
-9. Al terminar: contenedor se elimina (--rm), worktree persiste en AGENTS_HOME
+9. On completion: container is removed (--rm), worktree persists in AGENTS_HOME
 ```
 
 ---
 
-## Tipos de agente y prompts automáticos
+## Agent Types and Automatic Prompts
 
-El skill construye el prompt según el tipo detectado de la petición del usuario:
+The skill builds the prompt based on the type detected from the user's request:
 
-### `feature` — nueva funcionalidad
+### `feature` — new functionality
 
-**Cuándo**: el usuario pide implementar algo nuevo.
+**When**: the user asks to implement something new.
 
 ```
 You are a senior software engineer. Implement the following in this codebase:
-<descripción del usuario>
+<user description>
 Requirements:
 - Write clean, tested, production-ready code
 - Follow existing conventions (read the codebase first)
 - Create a git commit when done with a descriptive message
 ```
 
-### `test` — pruebas unitarias
+### `test` — unit tests
 
-**Cuándo**: el usuario pide escribir o mejorar tests.
+**When**: the user asks to write or improve tests.
 
 ```
 You are a senior QA engineer. Your task:
-<descripción del usuario>
+<user description>
 Requirements:
 - Identify untested or poorly tested code
 - Write comprehensive unit tests
@@ -145,11 +145,11 @@ Requirements:
 
 ### `mutation` — mutation testing
 
-**Cuándo**: el usuario pide mutation testing o análisis de cobertura de tests.
+**When**: the user asks for mutation testing or test coverage analysis.
 
 ```
 You are a mutation testing expert. Your task:
-<descripción del usuario>
+<user description>
 Requirements:
 - Analyze existing tests for weak assertions
 - Introduce mutations and verify tests catch them
@@ -160,24 +160,24 @@ Requirements:
 
 ### `explore` / general
 
-**Cuándo**: cualquier otra tarea de código.
+**When**: any other code task.
 
 ```
 You are a senior software engineer. Your task:
-<descripción del usuario>
+<user description>
 Work autonomously, read the codebase as needed, and commit any changes.
 ```
 
 ---
 
-## Nomenclatura de contenedores
+## Container Naming
 
-El nombre del contenedor se deriva automáticamente del proyecto y la rama:
+The container name is automatically derived from the project and branch:
 
 ```
 CONTAINER_NAME = <PROJECT_NAME>-<CONTAINER_BRANCH>
 
-donde:
+where:
   PROJECT_NAME   = basename $(git rev-parse --show-toplevel)
   CONTAINER_BRANCH = echo $BRANCH | tr '/_ ' '-' | tr '[:upper:]' '[:lower:]'
 ```
@@ -188,27 +188,27 @@ donde:
 | `test/payment-service` | `stackai` | `stackai-test-payment-service` |
 | `mutation/API_v2` | `stackai` | `stackai-mutation-api-v2` |
 
-> **Regla de sanitización**: cada `/`, `_` o espacio se convierte en un único `-`, y se pasa a minúsculas. Se usa `tr '/_ ' '-'` (no `'---'`) para garantizar reemplazo 1:1.
+> **Sanitization rule**: every `/`, `_`, or space is converted to a single `-`, and the result is lowercased. `tr '/_ ' '-'` is used (not `'---'`) to ensure a 1:1 replacement.
 
 ---
 
-## Ejemplo completo — feature agent
+## Full Example — Feature Agent
 
-### Escenario
-Queremos implementar OAuth2 con JWT en la API, en rama `feat/oauth2`, sin tocar el branch `main`.
+### Scenario
+We want to implement OAuth2 with JWT in the API, on branch `feat/oauth2`, without touching the `main` branch.
 
-### 1. Invocar al coordinador
+### 1. Invoke the coordinator
 
 ```
 "Spawn an agent to implement OAuth2 authentication with JWT tokens. Branch: feat/oauth2"
 ```
 
-El skill se activa automáticamente.
+The skill activates automatically.
 
-### 2. Lo que Claude ejecuta
+### 2. What Claude executes
 
 ```bash
-# Verificación de vars
+# Variable verification
 test -n "$CLAUDE_CONTAINER_OAUTH_TOKEN" || echo "ERROR: export CLAUDE_CONTAINER_OAUTH_TOKEN=<token>"
 test -n "$AGENTS_HOME"                  || echo "ERROR: export AGENTS_HOME=<path>"
 
@@ -221,14 +221,14 @@ CONTAINER_BRANCH=$(echo "$BRANCH" | tr '/_ ' '-' | tr '[:upper:]' '[:lower:]')
 CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_BRANCH}"
 # => stackai-feat-oauth2
 
-# Red (macOS 26+)
+# Network (macOS 26+)
 container network list --format json 2>/dev/null | grep -q '"claude-agent-net"' \
   || container network create --subnet 192.168.100.0/24 claude-agent-net
 
-# Directorio de worktrees
+# Worktrees directory
 mkdir -p "${AGENTS_HOME}"
 
-# Lanzar agente
+# Launch agent
 TASK="You are a senior software engineer. Implement the following in this codebase:
 Implement OAuth2 authentication with JWT tokens in the API.
 Requirements:
@@ -249,97 +249,97 @@ container run -d --rm \
   claude-agent:wolfi \
   --worktree "feat/oauth2" --task "${TASK}"
 
-# Confirmar
+# Confirm
 container list | grep "stackai-feat-oauth2"
 ```
 
-### 3. Monitorear progreso
+### 3. Monitor progress
 
 ```bash
-# Últimas 100 líneas (snapshot)
+# Last 100 lines (snapshot)
 container logs -n 100 stackai-feat-oauth2
 
-# En tiempo real
+# Real time
 container logs -f stackai-feat-oauth2
 ```
 
-Claude resume los logs y te explica en qué paso está el agente.
+Claude summarizes the logs and explains what step the agent is at.
 
-### 4. Resultado
+### 4. Result
 
-Al terminar, el agente habrá:
-- Creado la rama `feat/oauth2`
-- Implementado OAuth2 + JWT en la rama
-- Hecho commit con mensaje descriptivo
-- Salido (contenedor eliminado automáticamente)
+On completion, the agent will have:
+- Created the `feat/oauth2` branch
+- Implemented OAuth2 + JWT on the branch
+- Made a commit with a descriptive message
+- Exited (container automatically removed)
 
-El worktree persiste en `$AGENTS_HOME/feat/oauth2/` para que puedas revisar el código.
+The worktree persists in `$AGENTS_HOME/feat/oauth2/` so you can review the code.
 
-### 5. Revisar y mergear
+### 5. Review and merge
 
 ```bash
-# Ver los commits del agente
+# View the agent's commits
 git -C "$AGENTS_HOME/feat/oauth2" log --oneline -10
 
-# Diff contra main
+# Diff against main
 git -C "$GIT_ROOT" diff main..feat/oauth2 --stat
 
-# Mergear si estás satisfecho
+# Merge if satisfied
 git -C "$GIT_ROOT" merge feat/oauth2
 
-# Limpiar worktree
+# Clean up worktree
 git -C "$GIT_ROOT" worktree remove --force "$AGENTS_HOME/feat/oauth2"
 rm -rf "$AGENTS_HOME/feat/oauth2"
 ```
 
 ---
 
-## Referencia de operaciones
+## Operations Reference
 
-### Listar agentes activos
+### List active agents
 
 ```
 "Show me what agents are currently running"
 ```
 
-Claude ejecuta:
+Claude executes:
 ```bash
 container list | grep "${PROJECT_NAME}"
 ls -la "${AGENTS_HOME}"
 ```
 
-### Monitorear un agente específico
+### Monitor a specific agent
 
 ```
 "What is the feat/oauth2 agent doing?"
 ```
 
-Claude ejecuta `container logs -n 100 stackai-feat-oauth2` y te da un resumen en lenguaje natural.
+Claude executes `container logs -n 100 stackai-feat-oauth2` and gives you a natural language summary.
 
-### Detener un agente
+### Stop an agent
 
 ```
 "Stop the feat/oauth2 agent"
 ```
 
-Claude ejecuta:
+Claude executes:
 ```bash
 container stop stackai-feat-oauth2
 ```
 
-Opcionalmente limpia el worktree si lo pides.
+Optionally cleans up the worktree if you ask.
 
-### Lanzar múltiples agentes en paralelo
+### Launch multiple agents in parallel
 
 ```
 "Spawn three agents: one for OAuth, one for tests on auth, one for mutation testing on payments"
 ```
 
-Claude lanza los tres contenedores en secuencia (detached), cada uno con su propia rama y prompt.
+Claude launches the three containers in sequence (detached), each with its own branch and prompt.
 
 ---
 
-## Referencia Apple Container CLI
+## Apple Container CLI Reference
 
 ```
 container run -d --rm --name <n> --network <net> --cpus <n> --memory <n>G
@@ -352,18 +352,18 @@ container network list [--format json|table]
 container network create --subnet <cidr> <name>
 ```
 
-Docs completos: https://github.com/apple/container/blob/main/docs/command-reference.md
+Full docs: https://github.com/apple/container/blob/main/docs/command-reference.md
 
 ---
 
-## Solución de problemas
+## Troubleshooting
 
-| Problema | Causa | Solución |
+| Problem | Cause | Solution |
 |---|---|---|
-| `ERROR: export AGENTS_HOME` | Variable no seteada | `export AGENTS_HOME=~/agents` en `~/.zshrc` |
-| `ERROR: export CLAUDE_CONTAINER_OAUTH_TOKEN` | Token no seteado | `export CLAUDE_CONTAINER_OAUTH_TOKEN=<token>` |
-| `Image not found: claude-agent:wolfi` | Imagen no construida | `cd config && make build` |
-| `--dangerously-skip-permissions cannot be used with root` | Imagen vieja sin usuario `agent` | `cd config && make build` para reconstruir |
-| Worktree creation failed (branch + dir ya existen) | Intento anterior dejó restos | `git worktree prune && git branch -D <branch> && rm -rf $AGENTS_HOME/<branch>` |
-| Container exits immediately | Error en entrypoint | `container logs <name>` para ver el error (sin `--rm` para preservar logs) |
-| Nombre de contenedor duplicado | Agente ya corriendo | `container list` para verificar; `container stop <name>` para liberarlo |
+| `ERROR: export AGENTS_HOME` | Variable not set | `export AGENTS_HOME=~/agents` in `~/.zshrc` |
+| `ERROR: export CLAUDE_CONTAINER_OAUTH_TOKEN` | Token not set | `export CLAUDE_CONTAINER_OAUTH_TOKEN=<token>` |
+| `Image not found: claude-agent:wolfi` | Image not built | `cd config && make build` |
+| `--dangerously-skip-permissions cannot be used with root` | Old image without `agent` user | `cd config && make build` to rebuild |
+| Worktree creation failed (branch + dir already exist) | Previous attempt left remnants | `git worktree prune && git branch -D <branch> && rm -rf $AGENTS_HOME/<branch>` |
+| Container exits immediately | Error in entrypoint | `container logs <name>` to see the error (without `--rm` to preserve logs) |
+| Duplicate container name | Agent already running | `container list` to verify; `container stop <name>` to free it |

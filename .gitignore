@@ -1,2 +1,19 @@
+# Python
 **/__pycache__/*
+*.egg-info/
+dist/
+build/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code eval workspace
 .claude/skills/spawn-agent-workspace/
