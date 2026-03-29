@@ -149,7 +149,7 @@ IMPORTANT: **Why the worktree is created inside the container:** Git needs acces
 | `NETWORK` | `claude-agent-net` | Agent bridge network |
 | `SUBNET` | `192.168.100.0/24` | Network CIDR |
 | `CPUS` | `8` | CPUs allocated to each container |
-| `MEMORY` | `12G` | RAM allocated to each container |
+| `MEMORY` | `3G` | RAM allocated to each container |
 | `BRANCH` | `agent-<timestamp>` | Agent branch to spawn |
 | `TASK` | `Explore the codebase...` | Agent task |
 | `AGENTS_HOME` | `<parent-of-git-root>/.worktrees` | Fallback if not in env |
