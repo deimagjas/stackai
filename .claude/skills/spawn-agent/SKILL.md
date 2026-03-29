@@ -136,7 +136,7 @@ container run -d --rm \
   --name "${CONTAINER_NAME}" \
   --network claude-agent-net \
   --cpus 8 \
-  --memory 12G \
+  --memory 3G \
   --dns 1.1.1.1 \
   -v "${GIT_ROOT}:/workspace" \
   -v "${AGENTS_HOME}:/worktrees" \

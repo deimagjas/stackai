@@ -39,7 +39,7 @@ NAME       ?= qubits-team
 NETWORK    ?= claude-agent-net
 SUBNET     ?= 192.168.100.0/24
 CPUS       ?= 8
-MEMORY     ?= 12G
+MEMORY     ?= 3G
 
 # Agent variables
 BRANCH     ?= agent-$(shell date +%s)

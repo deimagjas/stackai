@@ -239,7 +239,7 @@ Requirements:
 container run -d --rm \
   --name "stackai-feat-oauth2" \
   --network claude-agent-net \
-  --cpus 8 --memory 12G --dns 1.1.1.1 \
+  --cpus 8 --memory 3G --dns 1.1.1.1 \
   -v "${GIT_ROOT}:/workspace" \
   -v "${AGENTS_HOME}:/worktrees" \
   -v "${HOME}/.claude:/root/.claudenew:ro" \
