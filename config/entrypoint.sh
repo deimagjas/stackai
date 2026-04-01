@@ -81,8 +81,77 @@ setup_agent_perms() {
     chown -R agent:agent "$WORKTREE_PATH"
 }
 
+write_status() {
+    local phase="$1"; shift
+    local now
+    now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    ( printf '{"phase":"%s","branch":"%s","task":"%s","started_at":"%s"}\n' \
+        "$phase" "$WORKTREE_BRANCH" "$AGENT_TASK" "${AGENT_STARTED_AT:-${now}}" \
+        > "${AGENT_DIR}/status.json" ) 2>/dev/null || true
+}
+
+emit_marker() {
+    local phase="$1"; shift
+    echo "[agent:status] PHASE=${phase} BRANCH=${WORKTREE_BRANCH} $*"
+}
+
 run_agent() {
-    exec su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "$AGENT_TASK"
+    AGENT_DIR="${WORKTREE_PATH}/.agent"
+    mkdir -p "$AGENT_DIR"
+    chown -R agent:agent "$AGENT_DIR"
+
+    # Add .agent/ to worktree .gitignore (safe if dir doesn't exist yet)
+    if ! grep -qxF '.agent/' "${WORKTREE_PATH}/.gitignore" 2>/dev/null; then
+        echo '.agent/' >> "${WORKTREE_PATH}/.gitignore" 2>/dev/null || true
+    fi
+
+    AGENT_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local start_epoch
+    start_epoch=$(date +%s)
+
+    write_status "starting"
+    emit_marker "starting"
+
+    write_status "working"
+    emit_marker "working"
+
+    # Run claude with tee to persist logs; capture exit code through pipe
+    set +e
+    su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions \
+        -p "$AGENT_TASK" 2>&1 | tee "$AGENT_DIR/agent.log"
+    local exit_code=${PIPESTATUS[0]}
+    set -e
+
+    # Collect post-run metrics
+    local commit_count last_commit finished_at end_epoch duration_secs
+    commit_count=$(git -C "$WORKTREE_PATH" rev-list --count HEAD 2>/dev/null || echo 0)
+    last_commit=$(git -C "$WORKTREE_PATH" log --oneline -1 2>/dev/null || echo "none")
+    finished_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    end_epoch=$(date +%s)
+    duration_secs=$((end_epoch - start_epoch))
+
+    local final_phase="completed"
+    [ "$exit_code" -ne 0 ] && final_phase="errored"
+
+    # Write final status.json
+    ( printf '{
+  "phase": "%s",
+  "branch": "%s",
+  "task": "%s",
+  "started_at": "%s",
+  "finished_at": "%s",
+  "duration_secs": %d,
+  "exit_code": %d,
+  "commits": %s,
+  "last_commit": "%s"
+}\n' "$final_phase" "$WORKTREE_BRANCH" "$AGENT_TASK" \
+     "$AGENT_STARTED_AT" "$finished_at" "$duration_secs" \
+     "$exit_code" "$commit_count" "$last_commit" \
+     > "$AGENT_DIR/status.json" ) 2>/dev/null || true
+
+    emit_marker "$final_phase" "EXIT_CODE=${exit_code}" "COMMITS=${commit_count}" "DURATION=${duration_secs}s"
+
+    exit "$exit_code"
 }
 
 run_interactive() {
