@@ -22,25 +22,28 @@ AGENT_TASK=""
 PROJECT_NAME=""
 PASSTHROUGH_ARGS=()
 
-# ── Parse agent mode flags ────────────────────────────────────────────────────
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --worktree) WORKTREE_BRANCH="$2"; shift 2 ;;
-        --task)     AGENT_TASK="$2";      shift 2 ;;
-        --project)  PROJECT_NAME="$2";    shift 2 ;;
-        *)          PASSTHROUGH_ARGS+=("$1"); shift ;;
-    esac
-done
+# ── Functions ─────────────────────────────────────────────────────────────────
 
-# ── Copy credentials from host mounts ─────────────────────────────────────────
-echo "[entrypoint] Copying credentials..."
-cp /root/.claudenew.json /root/.claude.json
-mkdir -p /root/.claude
-cp -r /root/.claudenew/. /root/.claude/
-echo "[entrypoint] Credentials ready."
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --worktree) WORKTREE_BRANCH="$2"; shift 2 ;;
+            --task)     AGENT_TASK="$2";      shift 2 ;;
+            --project)  PROJECT_NAME="$2";    shift 2 ;;
+            *)          PASSTHROUGH_ARGS+=("$1"); shift ;;
+        esac
+    done
+}
 
-# ── Agent mode: worktree + headless ───────────────────────────────────────────
-if [[ -n "$WORKTREE_BRANCH" ]]; then
+copy_credentials() {
+    echo "[entrypoint] Copying credentials..."
+    cp /root/.claudenew.json /root/.claude.json
+    mkdir -p /root/.claude
+    cp -r /root/.claudenew/. /root/.claude/
+    echo "[entrypoint] Credentials ready."
+}
+
+create_worktree() {
     WORKTREE_PATH="/worktrees/${WORKTREE_BRANCH}"
 
     echo "[entrypoint] Creating worktree: ${WORKTREE_BRANCH} → ${WORKTREE_PATH}"
@@ -60,31 +63,53 @@ if [[ -n "$WORKTREE_BRANCH" ]]; then
 
     cd "$WORKTREE_PATH"
     echo "[entrypoint] Working directory: $(pwd)"
+}
 
-    if [[ -n "$AGENT_TASK" ]]; then
-        echo "[entrypoint] Starting Claude agent (headless)..."
-        echo "[entrypoint] Task: ${AGENT_TASK}"
-        echo "---"
-        # Make claude's install path traversable for non-root users (installed under /root/)
-        # go+x required: agent is in group root (gid=0), so group bits apply, not others bits
-        chmod go+x /root /root/.local /root/.local/share 2>/dev/null || true
-        find /root/.local/share/claude -type d -exec chmod go+x {} + 2>/dev/null || true
-        find /root/.local/share/claude/versions -maxdepth 1 -type f -exec chmod 755 {} + 2>/dev/null || true
-        # Copy credentials to agent user's home (claude requires non-root for --dangerously-skip-permissions)
-        cp -r /root/.claude/. /home/agent/.claude/ 2>/dev/null || true
-        cp /root/.claude.json /home/agent/.claude.json 2>/dev/null || true
-        chown -R agent:agent /home/agent/.claude /home/agent/.claude.json 2>/dev/null || true
-        chown -R agent:agent "$WORKTREE_PATH"
-        exec su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "$AGENT_TASK"
-    else
-        # Worktree ready but no task: interactive shell in the worktree
+setup_agent_perms() {
+    echo "[entrypoint] Starting Claude agent (headless)..."
+    echo "[entrypoint] Task: ${AGENT_TASK}"
+    echo "---"
+    # Make claude's install path traversable for non-root users (installed under /root/)
+    # go+x required: agent is in group root (gid=0), so group bits apply, not others bits
+    chmod go+x /root /root/.local /root/.local/share 2>/dev/null || true
+    find /root/.local/share/claude -type d -exec chmod go+x {} + 2>/dev/null || true
+    find /root/.local/share/claude/versions -maxdepth 1 -type f -exec chmod 755 {} + 2>/dev/null || true
+    # Copy credentials to agent user's home (claude requires non-root for --dangerously-skip-permissions)
+    cp -r /root/.claude/. /home/agent/.claude/ 2>/dev/null || true
+    cp /root/.claude.json /home/agent/.claude.json 2>/dev/null || true
+    chown -R agent:agent /home/agent/.claude /home/agent/.claude.json 2>/dev/null || true
+    chown -R agent:agent "$WORKTREE_PATH"
+}
+
+run_agent() {
+    exec su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "$AGENT_TASK"
+}
+
+run_interactive() {
+    if [[ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]]; then
         exec /bin/bash --login
+    else
+        exec "${PASSTHROUGH_ARGS[@]}"
     fi
-fi
+}
 
-# ── Interactive mode (original behavior) ──────────────────────────────────────
-if [[ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]]; then
-    exec /bin/bash --login
-else
-    exec "${PASSTHROUGH_ARGS[@]}"
-fi
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+main() {
+    parse_args "$@"
+    copy_credentials
+
+    if [[ -n "$WORKTREE_BRANCH" ]]; then
+        create_worktree
+        if [[ -n "$AGENT_TASK" ]]; then
+            setup_agent_perms
+            run_agent
+        else
+            run_interactive
+        fi
+    else
+        run_interactive
+    fi
+}
+
+main "$@"
