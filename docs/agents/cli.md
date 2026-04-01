@@ -111,6 +111,25 @@ Follows live streaming logs (hands off TTY via `os.execvp`).
 q agents follow --branch feat-oauth2
 ```
 
+#### `q agents status`
+
+Shows agent status from the persisted `status.json` file. Works even after the
+container has exited — reads directly from the worktree filesystem.
+
+```bash
+q agents status --branch feat-oauth2
+```
+
+Output includes: phase, branch, task, timestamps, duration, exit code, commit count.
+
+#### `q agents summary`
+
+Shows structured lifecycle events (`[agent:status]` markers) for a branch agent.
+
+```bash
+q agents summary --branch feat-oauth2
+```
+
 #### `q agents stop`
 
 Stops a branch agent container.
@@ -118,6 +137,12 @@ Stops a branch agent container.
 ```bash
 q agents stop --branch feat-oauth2
 ```
+
+#### Log fallback behavior
+
+When the container no longer exists (agent finished, `--rm` removed it), `logs` and
+`follow` automatically fall back to the persisted `.agent/agent.log` in the worktree
+directory with a contextual message. This avoids confusing error output.
 
 ---
 
