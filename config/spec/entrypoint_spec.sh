@@ -28,6 +28,32 @@ find() { echo "[MOCK] find $*"; }
 chown() { echo "[MOCK] chown $*"; }
 dirname() { command dirname "$@"; }
 pwd() { echo "/mocked/pwd"; }
+date() {
+  if [[ "$*" == *"+%s"* ]]; then
+    echo "1000000"
+  else
+    echo "2026-01-01T00:00:00Z"
+  fi
+}
+tee() { command cat; }
+grep() {
+  # For .gitignore check, pretend .agent/ is already there
+  if [[ "$*" == *".gitignore"* ]]; then
+    return 0
+  fi
+  command grep "$@"
+}
+cat() {
+  # Intercept heredoc writes to status.json (cat > file)
+  if [[ "${1:-}" == ">" ]]; then
+    echo "[MOCK] cat > $2"
+    command cat > /dev/null
+    return 0
+  fi
+  command cat "$@"
+}
+
+su-exec() { echo "[MOCK] su-exec $*"; }
 
 git() {
   echo "[MOCK] git $*"
@@ -35,6 +61,12 @@ git() {
     [[ "$GIT_WORKTREE_NEW_BRANCH_SUCCEEDS" == "true" ]] && return 0 || return 1
   elif [[ "$*" == *"worktree add"* ]]; then
     [[ "$GIT_WORKTREE_EXISTING_BRANCH_SUCCEEDS" == "true" ]] && return 0 || return 1
+  elif [[ "$*" == *"rev-list --count"* ]]; then
+    echo "3"
+    return 0
+  elif [[ "$*" == *"log --oneline -1"* ]]; then
+    echo "abc1234 test commit"
+    return 0
   fi
   return 0
 }
@@ -49,7 +81,7 @@ exec() {
   exit 0
 }
 
-export -f cp mkdir chmod find chown git cd exec pwd dirname
+export -f cp mkdir chmod find chown git cd exec pwd dirname su-exec date tee grep cat
 
 source "$ENTRYPOINT_SH" "$@"
 WRAPPER_EOF
@@ -305,9 +337,9 @@ WRAPPER_EOF
       The status should equal 0
     End
 
-    It "execs su-exec with correct claude command"
+    It "runs su-exec with correct claude command"
       When run run_entrypoint --worktree agent-br --task "do work"
-      The output should include "[EXEC] exec su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p do work"
+      The output should include "[MOCK] su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p do work"
       The status should equal 0
     End
 
@@ -322,7 +354,7 @@ WRAPPER_EOF
     It "tolerates chmod failures via || true"
       When run run_entrypoint --worktree agent-br --task "work"
       The status should equal 0
-      The output should include "[EXEC] exec su-exec"
+      The output should include "[MOCK] su-exec"
     End
 
     It "passes task with special characters"
@@ -345,7 +377,7 @@ WRAPPER_EOF
     It "does not invoke su-exec without task"
       When run run_entrypoint --worktree my-branch
       The output should not include "[MOCK] chown"
-      The output should not include "[EXEC] exec su-exec"
+      The output should not include "[MOCK] su-exec"
       The status should equal 0
     End
 
@@ -410,6 +442,51 @@ WRAPPER_EOF
       The output should include "Copying credentials"
       The output should include "Credentials ready"
       The output should include "Creating worktree"
+      The status should equal 0
+    End
+  End
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 8. AGENT MONITORING
+  # ═══════════════════════════════════════════════════════════════════════════
+  Describe "Agent Monitoring"
+    It "emits starting lifecycle marker"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "[agent:status] PHASE=starting BRANCH=agent-br"
+      The status should equal 0
+    End
+
+    It "emits working lifecycle marker"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "[agent:status] PHASE=working BRANCH=agent-br"
+      The status should equal 0
+    End
+
+    It "emits completed lifecycle marker on success"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "[agent:status] PHASE=completed BRANCH=agent-br"
+      The output should include "EXIT_CODE=0"
+      The output should include "COMMITS="
+      The output should include "DURATION="
+      The status should equal 0
+    End
+
+    It "creates .agent directory in worktree"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "[MOCK] mkdir -p /worktrees/agent-br/.agent"
+      The status should equal 0
+    End
+
+    It "runs su-exec without exec (allows post-processing)"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "[MOCK] su-exec agent env HOME=/home/agent claude"
+      The output should not include "[EXEC] exec su-exec"
+      The status should equal 0
+    End
+
+    It "collects commit count after agent finishes"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "[MOCK] git -C /worktrees/agent-br rev-list --count HEAD"
       The status should equal 0
     End
   End

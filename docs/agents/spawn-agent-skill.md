@@ -256,10 +256,16 @@ container list | grep "stackai-feat-oauth2"
 ### 3. Monitor progress
 
 ```bash
-# Last 100 lines (snapshot)
+# Quick status (works even after container exits)
+cat "$AGENTS_HOME/feat/oauth2/.agent/status.json"
+
+# Structured lifecycle events
+container logs stackai-feat-oauth2 2>/dev/null | grep '^\[agent:'
+
+# Full logs — last 100 lines
 container logs -n 100 stackai-feat-oauth2
 
-# Real time
+# Real time (while running)
 container logs -f stackai-feat-oauth2
 ```
 
@@ -272,6 +278,7 @@ On completion, the agent will have:
 - Implemented OAuth2 + JWT on the branch
 - Made a commit with a descriptive message
 - Exited (container automatically removed)
+- Left `status.json` and `agent.log` in `$AGENTS_HOME/feat/oauth2/.agent/`
 
 The worktree persists in `$AGENTS_HOME/feat/oauth2/` so you can review the code.
 
@@ -314,7 +321,18 @@ ls -la "${AGENTS_HOME}"
 "What is the feat/oauth2 agent doing?"
 ```
 
-Claude executes `container logs -n 100 stackai-feat-oauth2` and gives you a natural language summary.
+Claude reads `$AGENTS_HOME/feat/oauth2/.agent/status.json` for quick status. If more
+detail is needed, reads `container logs` (live) or `.agent/agent.log` (post-exit) and
+gives a natural language summary.
+
+### Check agent status (post-exit)
+
+```
+"What happened with the feat/oauth2 agent?"
+```
+
+Claude reads the persisted `status.json` from the worktree. This works even after the
+container has been removed (which happens automatically with `--rm`).
 
 ### Stop an agent
 

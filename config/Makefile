@@ -60,7 +60,7 @@ CONTAINER_BRANCH := $(shell echo "$(BRANCH)" | tr '/_ ' '-' | tr '[:upper:]' '[:
 # Host env var holding the OAuth token (avoids collision with host Claude instance)
 HOST_TOKEN_VAR := CLAUDE_CONTAINER_OAUTH_TOKEN
 
-.PHONY: build network run shell spawn list-agents logs-agent follow-agent stop-agent clean clean-network clean-all help
+.PHONY: build network run shell spawn list-agents logs-agent follow-agent stop-agent status-agent summary-agent clean clean-network clean-all help
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
@@ -131,13 +131,74 @@ list-agents:
 	@container list 2>/dev/null | grep "$(PROJECT_NAME)" || echo "  (none)"
 	@echo ""
 	@echo "[agents] Worktrees in $(WORKTREES_DIR):"
-	@ls -la "$(WORKTREES_DIR)" 2>/dev/null || echo "  (none yet)"
+	@if [ -d "$(WORKTREES_DIR)" ]; then \
+		for dir in $(WORKTREES_DIR)/*/; do \
+			[ -d "$$dir" ] || continue; \
+			branch=$$(basename "$$dir"); \
+			status_file="$$dir/.agent/status.json"; \
+			if [ -f "$$status_file" ] && command -v jq >/dev/null 2>&1; then \
+				phase=$$(jq -r '.phase // "unknown"' "$$status_file" 2>/dev/null || echo "unknown"); \
+				printf "  %-30s %s\n" "$$branch" "$$phase"; \
+			else \
+				printf "  %-30s %s\n" "$$branch" "(no status)"; \
+			fi; \
+		done; \
+	else \
+		echo "  (none yet)"; \
+	fi
 
 logs-agent:
-	container logs $(PROJECT_NAME)-$(CONTAINER_BRANCH)
+	@container logs $(PROJECT_NAME)-$(CONTAINER_BRANCH) 2>/dev/null \
+		|| { \
+			LOG_FILE="$(WORKTREES_DIR)/$(BRANCH)/.agent/agent.log"; \
+			if [ -f "$$LOG_FILE" ]; then \
+				echo "[logs] Container $(PROJECT_NAME)-$(CONTAINER_BRANCH) no longer running (agent finished)."; \
+				echo "[logs] Showing saved logs from $$LOG_FILE"; \
+				echo "---"; \
+				cat "$$LOG_FILE"; \
+			else \
+				echo "[logs] Container $(PROJECT_NAME)-$(CONTAINER_BRANCH) not found and no saved logs at $$LOG_FILE"; \
+			fi; \
+		}
 
 follow-agent:
-	container logs -f $(PROJECT_NAME)-$(CONTAINER_BRANCH)
+	@container logs -f $(PROJECT_NAME)-$(CONTAINER_BRANCH) 2>/dev/null \
+		|| { \
+			LOG_FILE="$(WORKTREES_DIR)/$(BRANCH)/.agent/agent.log"; \
+			if [ -f "$$LOG_FILE" ]; then \
+				echo "[logs] Container $(PROJECT_NAME)-$(CONTAINER_BRANCH) no longer running (agent finished)."; \
+				echo "[logs] Showing saved logs from $$LOG_FILE"; \
+				echo "---"; \
+				cat "$$LOG_FILE"; \
+			else \
+				echo "[logs] Container $(PROJECT_NAME)-$(CONTAINER_BRANCH) not found and no saved logs at $$LOG_FILE"; \
+			fi; \
+		}
+
+status-agent:
+	@STATUS_FILE="$(WORKTREES_DIR)/$(BRANCH)/.agent/status.json"; \
+	if [ -f "$$STATUS_FILE" ]; then \
+		if command -v jq >/dev/null 2>&1; then \
+			jq '.' "$$STATUS_FILE"; \
+		else \
+			cat "$$STATUS_FILE"; \
+		fi; \
+	else \
+		echo "[status] No status file found for branch '$(BRANCH)'."; \
+		echo "[status] Expected at: $$STATUS_FILE"; \
+	fi
+
+summary-agent:
+	@container logs $(PROJECT_NAME)-$(CONTAINER_BRANCH) 2>/dev/null \
+		| grep '^\[agent:' \
+		|| { \
+			LOG_FILE="$(WORKTREES_DIR)/$(BRANCH)/.agent/agent.log"; \
+			if [ -f "$$LOG_FILE" ]; then \
+				grep '^\[agent:' "$$LOG_FILE" || echo "(no structured events found)"; \
+			else \
+				echo "(no logs available for branch '$(BRANCH)')"; \
+			fi; \
+		}
 
 stop-agent:
 	@container stop $(PROJECT_NAME)-$(CONTAINER_BRANCH) 2>/dev/null \

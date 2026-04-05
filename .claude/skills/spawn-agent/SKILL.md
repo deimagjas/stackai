@@ -168,23 +168,55 @@ ls -la "${AGENTS_HOME}" 2>/dev/null || echo "(no worktrees yet at $AGENTS_HOME)"
 
 Show the user a readable table with both container status and worktree list.
 
-## Reading agent output (context)
+## Reading agent output
 
-`container logs` captures everything the agent prints (Claude's reasoning,
-tool calls, results). Use this to pass context back to the user:
+Agents persist structured monitoring data in the worktree at
+`${AGENTS_HOME}/<branch>/.agent/`. Use the right source for each question:
+
+### Quick status (preferred for "what is agent X doing?")
+
+```bash
+# Read status.json — works even after container exits
+cat "${AGENTS_HOME}/${BRANCH}/.agent/status.json" 2>/dev/null
+```
+
+Returns JSON with phase, branch, task, timestamps, exit code, and commit count.
+Phases: `starting` → `working` → `completed` | `errored`.
+
+### Structured lifecycle events
 
 ```bash
 CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_BRANCH}"
 
-# Last 100 lines (good for summary)
-container logs -n 100 "${CONTAINER_NAME}"
+# From live container
+container logs "${CONTAINER_NAME}" 2>/dev/null | grep '^\[agent:'
 
-# Follow live output (for running agents)
-container logs -f "${CONTAINER_NAME}"
+# From persisted logs (after container exits)
+grep '^\[agent:' "${AGENTS_HOME}/${BRANCH}/.agent/agent.log" 2>/dev/null
 ```
+
+### Full logs
+
+```bash
+# Live container (while running)
+container logs -n 100 "${CONTAINER_NAME}"
+container logs -f "${CONTAINER_NAME}"
+
+# Persisted logs (after container exits)
+tail -100 "${AGENTS_HOME}/${BRANCH}/.agent/agent.log"
+```
+
+### Decision flow
+
+- **"What is agent X doing?"** → read `status.json` (instant, always works)
+- **"What did agent X do?"** → read `agent.log` (persisted, works post-exit)
+- **"Show me live output"** → `container logs -f` (only while running)
 
 Read the logs and **summarize the agent's progress** — don't just dump raw output.
 Tell the user: what the agent is working on, what it has done, what step it's at.
+
+**Important:** When the container is gone (agent finished), do NOT attempt
+`container logs` — it will fail. Use the persisted files in `.agent/` instead.
 
 ## Integrating agent work
 

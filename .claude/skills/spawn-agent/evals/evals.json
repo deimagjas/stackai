@@ -44,13 +44,37 @@
     {
       "id": 4,
       "prompt": "Check what the feat/oauth2 agent is doing right now. Give me a summary of its progress.",
-      "expected_output": "Claude runs container logs for the feat/oauth2 agent (sanitized to feat-oauth2 in name), reads the output, and provides a plain-language summary of the agent's progress — not just a raw log dump.",
+      "expected_output": "Claude checks status.json from the worktree for quick status, and/or reads container logs (sanitized name feat-oauth2). Provides a plain-language summary — not just a raw log dump.",
       "files": [],
       "expectations": [
-        "Runs `container logs` (not container run or container list)",
-        "Uses correct sanitized container name: includes feat-oauth2",
-        "Provides a summary or interpretation of logs, not just raw output",
+        "Reads status.json from $AGENTS_HOME/feat/oauth2/.agent/ OR runs `container logs`",
+        "Uses correct sanitized container name if using container logs: includes feat-oauth2",
+        "Provides a summary or interpretation, not just raw output",
         "Does NOT spawn a new container"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "The feat/oauth2 agent finished a while ago. What was the result? Did it succeed?",
+      "expected_output": "Claude reads status.json from the persisted worktree directory. Reports the phase (completed/errored), exit code, commit count, and duration. Does NOT attempt container logs on a stopped container.",
+      "files": [],
+      "expectations": [
+        "Reads status.json from $AGENTS_HOME/feat/oauth2/.agent/status.json",
+        "Reports phase, exit code, and commit count from the status file",
+        "Does NOT attempt `container logs` on a container that no longer exists",
+        "Does NOT show error messages about missing containers"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Show me the full logs from the feat/oauth2 agent. It finished already.",
+      "expected_output": "Claude reads the persisted agent.log from the worktree directory. Shows the saved logs with a note that these are persisted logs from a finished agent.",
+      "files": [],
+      "expectations": [
+        "Reads from $AGENTS_HOME/feat/oauth2/.agent/agent.log (persisted logs)",
+        "Does NOT attempt `container logs` as the primary source for a finished agent",
+        "Indicates these are saved/persisted logs",
+        "Does NOT show confusing error output about missing containers"
       ]
     },
     {
