@@ -53,31 +53,39 @@ class TestCheckToken:
         monkeypatch.setenv("CLAUDE_CONTAINER_OAUTH_TOKEN", "tok-abc")
         check_token()  # should not raise
 
-    def test_exits_when_token_missing(self, monkeypatch: pytest.MonkeyPatch):
+    def test_exits_when_token_missing(self, monkeypatch: pytest.MonkeyPatch, capsys):
         monkeypatch.delenv("CLAUDE_CONTAINER_OAUTH_TOKEN", raising=False)
         with pytest.raises(typer.Exit) as exc_info:
             check_token()
         assert exc_info.value.exit_code == 1
+        err = capsys.readouterr().err
+        assert err.startswith("[error]")
+        assert "CLAUDE_CONTAINER_OAUTH_TOKEN" in err
 
-    def test_exits_when_token_empty(self, monkeypatch: pytest.MonkeyPatch):
+    def test_exits_when_token_empty(self, monkeypatch: pytest.MonkeyPatch, capsys):
         monkeypatch.setenv("CLAUDE_CONTAINER_OAUTH_TOKEN", "")
         with pytest.raises(typer.Exit) as exc_info:
             check_token()
         assert exc_info.value.exit_code == 1
+        err = capsys.readouterr().err
+        assert err.startswith("[error]")
+        assert "CLAUDE_CONTAINER_OAUTH_TOKEN" in err
 
 
 # ---------- run_make ----------
 
 class TestRunMake:
     def test_basic_target(self, fake_git_root: Path):
-        with patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m:
+        with patch("container_cli.utils.os.execvp"), \
+             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m:
             run_make("build")
             m.assert_called_once_with(
                 ["make", "-C", str(fake_git_root / "config"), "build"]
             )
 
     def test_with_extra_vars(self, fake_git_root: Path):
-        with patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m:
+        with patch("container_cli.utils.os.execvp"), \
+             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m:
             run_make("spawn", {"BRANCH": "feat/x", "TASK": "do stuff"})
             cmd = m.call_args[0][0]
             assert cmd[:4] == ["make", "-C", str(fake_git_root / "config"), "spawn"]
@@ -85,7 +93,8 @@ class TestRunMake:
             assert "TASK=do stuff" in cmd
 
     def test_raises_exit_on_failure(self, fake_git_root: Path):
-        with patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=2)):
+        with patch("container_cli.utils.os.execvp"), \
+             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=2)):
             with pytest.raises(typer.Exit) as exc_info:
                 run_make("build")
             assert exc_info.value.exit_code == 2
@@ -103,3 +112,10 @@ class TestRunMake:
             run_make("shell", {"NAME": "test"}, tty=True)
             cmd = m_exec.call_args[0][1]
             assert "NAME=test" in cmd
+
+    def test_default_tty_uses_subprocess(self, fake_git_root: Path):
+        with patch("container_cli.utils.os.execvp") as m_exec, \
+             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m_sub:
+            run_make("build")
+            m_sub.assert_called_once()
+            m_exec.assert_not_called()
