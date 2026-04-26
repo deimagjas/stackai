@@ -17,12 +17,14 @@ packages = ["src/container_cli"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-bdd>=8",
     "ruff>=0.9",
     "mutmut>=3.0",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "tests/acceptance"]
+python_files = ["test_*.py", "*_steps.py"]
 
 [tool.mutmut]
 paths_to_mutate = ["src/container_cli/"]
@@ -30,3 +32,5 @@ paths_to_mutate = ["src/container_cli/"]
 # Command-module tests mock their dependencies so coverage never maps them
 # to the functions they exercise — without this flag those mutations get "no tests".
 only_covered_tests = false
+# CI gate threshold (enforced by `make mutation-ci-threshold`, not by mutmut itself)
+# threshold = 70

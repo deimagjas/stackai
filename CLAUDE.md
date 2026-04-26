@@ -46,9 +46,18 @@ uv run q agents list
 ```bash
 # Python CLI tests (from app/cli/)
 cd app/cli && uv sync
-uv run pytest -v                    # full suite
+uv run pytest -v                    # full suite (unit + acceptance)
 uv run pytest tests/test_agents.py  # single module
 uv run pytest -k test_spawn         # single test by name
+
+# Acceptance tests only (Gherkin/BDD, local — no real containers)
+make acceptance-test
+
+# Mutation testing gate (≥ 70% kill rate)
+make mutation-ci-threshold
+
+# Pre-PR quality gate: acceptance + skill evals
+make local-qa
 
 # Linting
 uv run ruff check .
@@ -57,7 +66,30 @@ uv run ruff check .
 cd config && shellspec --shell bash
 ```
 
-CI runs all of these plus hadolint on both Dockerfiles and an Alpine builder stage compilation check.
+CI runs unit tests, mutation tests with a 70% threshold, hadolint on both Dockerfiles, and an Alpine builder stage compilation check. Acceptance tests run locally only — GitHub Actions does not have Apple Container CLI.
+
+## Testing philosophy
+
+### Acceptance tests — source of truth
+
+The acceptance tests in `app/cli/tests/acceptance/features/` (Gherkin) define the contracted behaviour of the CLI. They invoke the public CLI surface via `CliRunner.invoke(app, [...])` with `run_make` mocked, so no real containers are spawned. Run them with `make acceptance-test`.
+
+**Rule**: do not modify an acceptance test without explicit agreement. Every new feature starts with an acceptance test. Unit tests and implementation serve the acceptance contract — never the other way around.
+
+### TDD flow (3 laws)
+
+When implementing a feature or fixing a bug:
+
+1. **Write the acceptance test** in Gherkin describing the expected behaviour from the user's perspective.
+2. **Apply Robert Martin's three laws of TDD** at the unit level:
+   - Law 1: Do not write production code without a failing unit test.
+   - Law 2: Write no more of a unit test than is sufficient to fail (compilation failure counts).
+   - Law 3: Write no more production code than is necessary to make the failing test pass.
+3. **Repeat** the red → green → refactor cycle until the acceptance test passes.
+
+Mutation tests (run via `make mutation-ci-threshold`) act as the safety net that catches semantic regressions the test suite would otherwise miss.
+
+For skill evals (LLM-graded), see the **Skill evals** section below.
 
 ## Architecture
 
