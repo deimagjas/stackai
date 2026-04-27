@@ -1,6 +1,11 @@
 from __future__ import annotations
+from pathlib import Path
+from unittest.mock import patch
 
-from container_cli.commands.agents import follow, list_agents, logs, spawn, stop
+import pytest
+import typer
+
+from container_cli.commands.agents import _agents_home, follow, list_agents, logs, spawn, status, stop
 
 
 class TestSpawn:
@@ -62,3 +67,37 @@ class TestStop:
     def test_passes_branch(self, mock_run_make):
         stop(branch="feat/x")
         mock_run_make["agents"].assert_called_once_with("stop-agent", {"BRANCH": "feat/x"})
+
+
+class TestStatus:
+    def test_missing_status_file(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        with pytest.raises(typer.Exit) as exc_info:
+            status(branch="feat/x")
+        assert exc_info.value.exit_code == 1
+
+    def test_reads_status_file(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        status_file = tmp_path / "feat/x" / ".agent" / "status.json"
+        status_file.parent.mkdir(parents=True)
+        status_file.write_text('{"phase": "running"}')
+        status(branch="feat/x")
+
+    def test_agents_home_fallback(self, monkeypatch):
+        monkeypatch.delenv("AGENTS_HOME", raising=False)
+        with patch("container_cli.commands.agents.find_git_root", return_value=Path("/fake/repo")):
+            with pytest.raises(typer.Exit) as exc_info:
+                status(branch="nonexistent-branch")
+        assert exc_info.value.exit_code == 1
+
+
+class TestAgentsHome:
+    def test_uses_env_var(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        assert _agents_home() == tmp_path
+
+    def test_fallback_path_name(self, monkeypatch):
+        monkeypatch.delenv("AGENTS_HOME", raising=False)
+        with patch("container_cli.commands.agents.find_git_root", return_value=Path("/home/user/repo")):
+            result = _agents_home()
+        assert result == Path("/home/user/.worktrees")

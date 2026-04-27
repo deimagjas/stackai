@@ -5,6 +5,10 @@ dist/
 build/
 .venv/
 
+# Mutation testing
+app/cli/mutants/
+.mutmut-cache
+
 # OS
 .DS_Store
 Thumbs.db
