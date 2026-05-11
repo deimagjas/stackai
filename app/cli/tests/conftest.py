@@ -19,12 +19,14 @@ def mock_run_make():
     with patch("container_cli.commands.agents.run_make") as m_agents, \
          patch("container_cli.commands.build.run_make") as m_build, \
          patch("container_cli.commands.run.run_make") as m_run, \
-         patch("container_cli.commands.network.run_make") as m_network:
+         patch("container_cli.commands.network.run_make") as m_network, \
+         patch("container_cli.commands.pi_agents.run_make") as m_pi:
         yield {
             "agents": m_agents,
             "build": m_build,
             "run": m_run,
             "network": m_network,
+            "pi": m_pi,
         }
 
 

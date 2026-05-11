@@ -163,16 +163,20 @@ wheels = [
 [[package]]
 name = "iac"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "mlx" },
     { name = "mlx-lm" },
+    { name = "rich" },
+    { name = "typer" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "mlx", specifier = ">=0.30.4" },
     { name = "mlx-lm", specifier = ">=0.30.0" },
+    { name = "rich", specifier = ">=13" },
+    { name = "typer", specifier = ">=0.12" },
 ]
 
 [[package]]

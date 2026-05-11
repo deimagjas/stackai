@@ -102,6 +102,43 @@
         "Stops and reports to user if a conflict occurs during any merge",
         "Does NOT delete original agent branches unless user explicitly asks"
       ]
+    },
+    {
+      "id": 9,
+      "prompt": "Spawn a PI agent (local mlx_lm backend) to investigate the auth module and propose refactors. Branch pi/auth-debug.",
+      "expected_output": "Claude detects this is a PI agent (uses the local mlx_lm.server), runs `make spawn-pi` (or `q pi spawn`) with BRANCH=pi/auth-debug and a feature-style task prompt. Reminds the user to ensure the local server is running via `uv run iac server status`. Does NOT use the Claude `spawn` target, does NOT pass CLAUDE_CODE_OAUTH_TOKEN.",
+      "files": [],
+      "expectations": [
+        "Uses the PI-specific target: `spawn-pi` (Makefile) or `q pi spawn` (CLI)",
+        "Container name pattern includes `-pi-` (sanitized branch under PI namespace)",
+        "Does NOT pass CLAUDE_CODE_OAUTH_TOKEN — PI agents authenticate against the local model",
+        "Mentions or checks that mlx_lm.server is running (e.g. `uv run iac server status`)",
+        "Warns the user about MAX_PI_AGENTS=1 if they ask for more than one PI agent at once"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Show me the PI agents currently running. I want to know which ones are using the local model.",
+      "expected_output": "Claude lists only PI agents (containers matching `*-pi-*` or worktrees with agent_kind=pi in status.json). Uses `make list-pi-agents` or `q pi list`. Does NOT include regular Claude agents in the output.",
+      "files": [],
+      "expectations": [
+        "Uses `list-pi-agents` target or `q pi list` command (not the generic `list-agents`)",
+        "Filters by PI containers (name includes `-pi-`) or PI worktrees (agent_kind=pi)",
+        "Does NOT spawn a new container",
+        "Output clearly distinguishes PI agents from Claude agents"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "The pi/auth-debug PI agent finished. Stop the container and tell me what it did.",
+      "expected_output": "Claude stops the PI container with `make stop-pi-agent BRANCH=pi/auth-debug` (or `q pi stop --branch pi/auth-debug`), then reads the persisted status.json from the worktree to summarize phase, exit code, commits. Does NOT call `stop-agent` (the Claude target).",
+      "files": [],
+      "expectations": [
+        "Uses `stop-pi-agent` target (not `stop-agent`)",
+        "Reads `.agent/status.json` from the worktree to summarize results",
+        "Reports phase, exit code, and commit count",
+        "Does NOT attempt `container logs` on a stopped container"
+      ]
     }
   ]
 }

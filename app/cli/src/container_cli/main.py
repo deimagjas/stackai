@@ -1,6 +1,6 @@
 import typer
 
-from container_cli.commands import agents, build, network, run
+from container_cli.commands import agents, build, network, pi_agents, run
 
 app = typer.Typer(name="q", help="Container management CLI for Claude agent containers")
 agents_app = agents.app
@@ -23,6 +23,9 @@ app.command("spawn")(agents.spawn)
 
 # Register agents sub-app
 app.add_typer(agents_app, name="agents")
+
+# Register PI agent sub-app (extension — local mlx_lm backend, no Claude token)
+app.add_typer(pi_agents.app, name="pi")
 
 
 if __name__ == "__main__":

@@ -255,6 +255,84 @@ git -C "${GIT_ROOT}" worktree remove --force "${AGENTS_HOME}/${BRANCH}"
 rm -rf "${AGENTS_HOME}/${BRANCH}"
 ```
 
+## PI agents (local mlx_lm backend)
+
+PI agents are a **separate class of agent** that use the pi.dev SDK with a
+LOCAL mlx_lm.server (managed via `/iac`) as their OpenAI-compatible backend,
+instead of the Anthropic cloud API. They are useful when you want agent work
+without consuming Claude API credits, or when the task is well-served by a
+local Gemma-class model.
+
+### When to use a PI agent (detection)
+
+Use a PI agent when the user says any of:
+- "spawn a PI agent" / "lanza un agente PI"
+- "use the local model" / "local LLM"
+- "use mlx_lm" / "use the local server"
+- "no Claude credits" / "without using the API"
+
+Otherwise, default to a regular Claude agent.
+
+### Required setup (one-time)
+
+```bash
+# 1. Build the PI image
+cd <git-root>/config && make build-pi
+
+# 2. Start the local model server (from /iac)
+cd <git-root>/iac && uv sync && uv run iac server start
+uv run iac server status   # verify it is reachable
+```
+
+### Spawning a PI agent
+
+PI agents do NOT need `CLAUDE_CONTAINER_OAUTH_TOKEN`. They authenticate
+against the local server via `PI_BASE_URL` (default
+`http://host.containers.internal:8080/v1`).
+
+Preferred: use the CLI wrapper.
+
+```bash
+q pi spawn --branch pi/refactor --task "rename ambiguous helpers"
+```
+
+Equivalent Makefile invocation:
+
+```bash
+cd <git-root>/config && make spawn-pi \
+    BRANCH=pi/refactor TASK="rename ambiguous helpers"
+```
+
+Container name pattern: `<project>-pi-<sanitized-branch>` (note the
+`-pi-` segment that distinguishes them from Claude agents).
+
+### Memory ceiling — MAX_PI_AGENTS=1
+
+The model + 6 GB prompt cache leaves little RAM headroom on Apple Silicon.
+The Makefile enforces `MAX_PI_AGENTS=1` by default — `spawn-pi` will refuse
+to launch a second PI agent while one is still running. If the user asks
+for multiple PI agents in parallel, **warn them** and recommend stopping
+the existing one first.
+
+### Listing, monitoring, stopping PI agents
+
+```bash
+q pi list                              # only PI agents
+q pi follow --branch pi/refactor       # live logs
+q pi status --branch pi/refactor       # status.json from worktree
+q pi stop   --branch pi/refactor       # stop the container
+```
+
+The status.json for PI agents includes `"agent_kind": "pi"`, used to filter
+PI worktrees from Claude worktrees in `list-pi-agents`.
+
+### Important — do not mix targets
+
+- Use `spawn-pi` / `q pi spawn` for PI agents — never the regular `spawn`.
+- Use `stop-pi-agent` / `q pi stop` for PI agents — never `stop-agent`.
+- The two agent classes share `AGENTS_HOME` and the bridge network, but
+  their containers, images, and entrypoints are independent.
+
 ## Apple Container CLI reference (key commands)
 
 ```

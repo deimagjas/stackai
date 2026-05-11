@@ -60,7 +60,8 @@ CONTAINER_BRANCH := $(shell echo "$(BRANCH)" | tr '/_ ' '-' | tr '[:upper:]' '[:
 # Host env var holding the OAuth token (avoids collision with host Claude instance)
 HOST_TOKEN_VAR := CLAUDE_CONTAINER_OAUTH_TOKEN
 
-.PHONY: build network run shell spawn list-agents logs-agent follow-agent stop-agent status-agent summary-agent clean clean-network clean-all help
+.PHONY: build network run shell spawn list-agents logs-agent follow-agent stop-agent status-agent summary-agent clean clean-network clean-all help \
+        build-pi spawn-pi list-pi-agents logs-pi-agent follow-pi-agent status-pi-agent stop-pi-agent clean-pi
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
@@ -216,6 +217,135 @@ clean-network:
 
 clean-all: clean clean-network
 
+# ── PI Agent (local mlx_lm backend) ───────────────────────────────────────────
+#
+# PI agents are a separate class of agent that uses the pi.dev SDK with a
+# LOCAL mlx_lm.server (hosted from /iac) as the OpenAI-compatible backend,
+# instead of the Anthropic cloud API.
+#
+# Memory safety:
+#   Gemma-4-26b + 6GB prompt cache leaves little RAM headroom on M-series.
+#   MAX_PI_AGENTS=1 by default. Override only when you understand the cost.
+#
+# Open/Closed: this section adds new targets; no existing target is modified.
+#
+# Usage:
+#   make build-pi
+#   uv run iac server start       # in /iac, FIRST — start the local LLM
+#   make spawn-pi  BRANCH=pi/refactor TASK="rename ambiguous helpers"
+#   make list-pi-agents
+#   make follow-pi-agent BRANCH=pi/refactor
+#   make stop-pi-agent   BRANCH=pi/refactor
+
+PI_IMAGE      ?= claude-pi:ubuntu
+PI_DOCKERFILE ?= Dockerfile.pi
+MAX_PI_AGENTS ?= 1
+PI_BASE_URL   ?= http://host.containers.internal:8080/v1
+
+build-pi:
+	container build --no-cache -f $(PI_DOCKERFILE) -t $(PI_IMAGE) .
+
+spawn-pi: network
+	@[ -n "$(BRANCH)" ] || (echo "[error] BRANCH is required"; exit 1)
+	@[ -n "$(TASK)" ]   || (echo "[error] TASK is required"; exit 1)
+	@RUNNING=$$(container list 2>/dev/null | grep -c "$(PROJECT_NAME)-pi-" || true); \
+	 if [ "$$RUNNING" -ge "$(MAX_PI_AGENTS)" ]; then \
+	   echo "[error] MAX_PI_AGENTS=$(MAX_PI_AGENTS) reached ($$RUNNING PI agents running)."; \
+	   echo "[error] Stop one with 'make stop-pi-agent BRANCH=<branch>' before spawning another."; \
+	   echo "[error] Reason: the local model + cache leaves little RAM for concurrent agents."; \
+	   exit 1; \
+	 fi
+	@mkdir -p "$(WORKTREES_DIR)"
+	@echo "[pi-spawn] Launching PI agent: $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH)"
+	@echo "[pi-spawn] Worktree: $(WORKTREES_DIR)/$(BRANCH)"
+	@echo "[pi-spawn] Backend: $(PI_BASE_URL)"
+	@echo "[pi-spawn] Task: $(TASK)"
+	container run -d --rm \
+		--name $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) \
+		--network $(NETWORK) \
+		--cpus $(CPUS) \
+		--memory $(MEMORY) \
+		--dns 1.1.1.1 \
+		-v $(GIT_ROOT):/workspace \
+		-v $(WORKTREES_DIR):/worktrees \
+		-e PI_BASE_URL=$(PI_BASE_URL) \
+		$(PI_IMAGE) \
+		--worktree "$(BRANCH)" --task "$(TASK)"
+	@echo "[pi-spawn] Agent started. View logs: make follow-pi-agent BRANCH=$(BRANCH)"
+
+list-pi-agents:
+	@echo "[pi-agents] Active PI containers for project '$(PROJECT_NAME)':"
+	@container list 2>/dev/null | grep "$(PROJECT_NAME)-pi-" || echo "  (none)"
+	@echo ""
+	@echo "[pi-agents] Worktrees in $(WORKTREES_DIR):"
+	@if [ -d "$(WORKTREES_DIR)" ]; then \
+		for dir in $(WORKTREES_DIR)/*/; do \
+			[ -d "$$dir" ] || continue; \
+			status_file="$$dir/.agent/status.json"; \
+			if [ -f "$$status_file" ] && command -v jq >/dev/null 2>&1; then \
+				kind=$$(jq -r '.agent_kind // ""' "$$status_file" 2>/dev/null || echo ""); \
+				[ "$$kind" = "pi" ] || continue; \
+				branch=$$(basename "$$dir"); \
+				phase=$$(jq -r '.phase // "unknown"' "$$status_file" 2>/dev/null || echo "unknown"); \
+				printf "  %-30s %s\n" "$$branch" "$$phase"; \
+			fi; \
+		done; \
+	else \
+		echo "  (none yet)"; \
+	fi
+
+logs-pi-agent:
+	@[ -n "$(BRANCH)" ] || (echo "[error] BRANCH required"; exit 1)
+	@container logs $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) 2>/dev/null \
+		|| { \
+			LOG_FILE="$(WORKTREES_DIR)/$(BRANCH)/.agent/agent.log"; \
+			if [ -f "$$LOG_FILE" ]; then \
+				echo "[pi-logs] Container $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) no longer running (PI agent finished)."; \
+				echo "[pi-logs] Showing saved logs from $$LOG_FILE"; \
+				echo "---"; \
+				cat "$$LOG_FILE"; \
+			else \
+				echo "[pi-logs] Container $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) not found and no saved logs at $$LOG_FILE"; \
+			fi; \
+		}
+
+follow-pi-agent:
+	@[ -n "$(BRANCH)" ] || (echo "[error] BRANCH required"; exit 1)
+	@container logs -f $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) 2>/dev/null \
+		|| { \
+			LOG_FILE="$(WORKTREES_DIR)/$(BRANCH)/.agent/agent.log"; \
+			if [ -f "$$LOG_FILE" ]; then \
+				echo "[pi-logs] Container $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) no longer running (PI agent finished)."; \
+				echo "[pi-logs] Showing saved logs from $$LOG_FILE"; \
+				echo "---"; \
+				cat "$$LOG_FILE"; \
+			else \
+				echo "[pi-logs] Container $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) not found and no saved logs at $$LOG_FILE"; \
+			fi; \
+		}
+
+status-pi-agent:
+	@STATUS_FILE="$(WORKTREES_DIR)/$(BRANCH)/.agent/status.json"; \
+	if [ -f "$$STATUS_FILE" ]; then \
+		if command -v jq >/dev/null 2>&1; then \
+			jq '.' "$$STATUS_FILE"; \
+		else \
+			cat "$$STATUS_FILE"; \
+		fi; \
+	else \
+		echo "[pi-status] No status file found for branch '$(BRANCH)'."; \
+		echo "[pi-status] Expected at: $$STATUS_FILE"; \
+	fi
+
+stop-pi-agent:
+	@[ -n "$(BRANCH)" ] || (echo "[error] BRANCH required"; exit 1)
+	@container stop $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) 2>/dev/null \
+		&& echo "[pi-stop] PI agent $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) stopped." \
+		|| echo "[pi-stop] PI agent $(PROJECT_NAME)-pi-$(CONTAINER_BRANCH) not found or already stopped."
+
+clean-pi:
+	container image delete $(PI_IMAGE) 2>/dev/null || true
+
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 help:
@@ -233,6 +363,15 @@ help:
 	@echo "    clean            Remove container + image $(IMAGE)"
 	@echo "    clean-network    Remove network $(NETWORK)"
 	@echo "    clean-all        Remove image + network"
+	@echo ""
+	@echo "  PI agent targets (local mlx_lm backend):"
+	@echo "    build-pi         Build $(PI_IMAGE) from $(PI_DOCKERFILE)"
+	@echo "    spawn-pi         Spawn PI agent (MAX_PI_AGENTS=$(MAX_PI_AGENTS) guard)"
+	@echo "    list-pi-agents   List active PI agents"
+	@echo "    follow-pi-agent  Follow live logs of PI agent (BRANCH=...)"
+	@echo "    status-pi-agent  Show status.json of PI agent (BRANCH=...)"
+	@echo "    stop-pi-agent    Stop a PI agent (BRANCH=...)"
+	@echo "    clean-pi         Remove the PI image"
 	@echo ""
 	@echo "  Agent targets (examples):"
 	@echo "    make spawn BRANCH=feat/auth TASK=\"implement OAuth flow\""
