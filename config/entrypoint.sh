@@ -51,6 +51,8 @@ create_worktree() {
     # Create destination directory if it doesn't exist
     mkdir -p "$(dirname "$WORKTREE_PATH")"
 
+    WORKTREE_BASE_SHA=$(git -C /workspace rev-parse HEAD 2>/dev/null || echo "")
+
     # Add worktree (idempotent: if branch already exists, reuses it)
     if git -C /workspace worktree add "$WORKTREE_PATH" -b "$WORKTREE_BRANCH" 2>/dev/null; then
         echo "[entrypoint] Worktree created on new branch: ${WORKTREE_BRANCH}"
@@ -124,8 +126,10 @@ run_agent() {
 
     # Collect post-run metrics
     local commit_count last_commit finished_at end_epoch duration_secs
-    commit_count=$(git -C "$WORKTREE_PATH" rev-list --count HEAD 2>/dev/null || echo 0)
-    last_commit=$(git -C "$WORKTREE_PATH" log --oneline -1 2>/dev/null || echo "none")
+    commit_count=$(git -C "$WORKTREE_PATH" -c "safe.directory=$WORKTREE_PATH" \
+        rev-list --count "${WORKTREE_BASE_SHA:-HEAD}..HEAD" 2>/dev/null || echo 0)
+    last_commit=$(git -C "$WORKTREE_PATH" -c "safe.directory=$WORKTREE_PATH" \
+        log --oneline -1 2>/dev/null || echo "none")
     finished_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     end_epoch=$(date +%s)
     duration_secs=$((end_epoch - start_epoch))

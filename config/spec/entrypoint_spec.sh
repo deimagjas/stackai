@@ -61,6 +61,9 @@ git() {
     [[ "$GIT_WORKTREE_NEW_BRANCH_SUCCEEDS" == "true" ]] && return 0 || return 1
   elif [[ "$*" == *"worktree add"* ]]; then
     [[ "$GIT_WORKTREE_EXISTING_BRANCH_SUCCEEDS" == "true" ]] && return 0 || return 1
+  elif [[ "$*" == *"rev-parse HEAD"* ]]; then
+    echo "basef00d"
+    return 0
   elif [[ "$*" == *"rev-list --count"* ]]; then
     echo "3"
     return 0
@@ -486,7 +489,19 @@ WRAPPER_EOF
 
     It "collects commit count after agent finishes"
       When run run_entrypoint --worktree agent-br --task "do work"
-      The output should include "[MOCK] git -C /worktrees/agent-br rev-list --count HEAD"
+      The output should include "rev-list --count"
+      The status should equal 0
+    End
+
+    It "uses safe.directory flag when collecting git metrics"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "safe.directory=/worktrees/agent-br"
+      The status should equal 0
+    End
+
+    It "counts only agent commits using BASE..HEAD"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "basef00d..HEAD"
       The status should equal 0
     End
   End
