@@ -17,8 +17,11 @@
 #
 # Backend LLM:
 #   El contenedor NO embarca un modelo. Se conecta al `mlx_lm.server`
-#   corriendo en el host vía host.containers.internal:8080 (gestionado
-#   por `uv run iac server start` desde /iac).
+#   corriendo en el host (gestionado por `uv run iac server start`
+#   desde /iac). Apple Container CLI no implementa
+#   `host.containers.internal` (issue apple/container#346), así que el
+#   contenedor llega al host vía la IP del gateway del bridge network.
+#   Por defecto SUBNET=192.168.100.0/24 → gateway 192.168.100.1.
 #   ⚠️ El modelo Gemma-4-26b + 6GB de prompt cache deja poco margen de
 #   RAM. El Makefile aplica MAX_PI_AGENTS=1 por defecto.
 # =============================================================================
@@ -66,7 +69,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/root/.local/bin:/usr/local/bin:$PATH" \
     BAT_PAGER="" \
     BAT_STYLE="numbers,changes,header" \
-    PI_BASE_URL=http://host.containers.internal:8080/v1 \
+    PI_BASE_URL=http://192.168.100.1:8080/v1 \
+    PI_MODEL_ID=mlx-community/gemma-4-26b-a4b-it-4bit \
+    PI_PROVIDER_NAME=local \
     PI_DISABLE_AUTOUPDATE=1
 
 RUN apt-get update \
@@ -96,11 +101,11 @@ COPY --from=builder /root/.cargo/bin/dust   /usr/local/bin/dust
 COPY --from=builder /root/.cargo/bin/procs  /usr/local/bin/procs
 COPY --from=builder /root/.cargo/bin/btm    /usr/local/bin/btm
 
-# PI SDK — verify exact package name on https://pi.dev/
-# Default placeholder: `pi-ai` PyPI package providing the `pi` CLI.
-# Override at build time with: --build-arg PI_PACKAGE=<alt-name>
-ARG PI_PACKAGE=pi-ai
-RUN pip3 install --break-system-packages --no-cache-dir "${PI_PACKAGE}"
+# PI coding agent — terminal coding agent from pi.dev (badlogic/pi-mono)
+# Installs the `pi` CLI globally. Headless invocation: `pi -p "<prompt>"`.
+# Custom providers live in ~/.pi/agent/models.json (populated by entrypoint-pi.sh).
+ARG PI_PACKAGE=@earendil-works/pi-coding-agent
+RUN npm install -g --no-fund --no-audit "${PI_PACKAGE}"
 
 # Aliases Rust
 RUN printf '%s\n' \

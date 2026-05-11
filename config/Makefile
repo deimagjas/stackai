@@ -240,7 +240,12 @@ clean-all: clean clean-network
 PI_IMAGE      ?= claude-pi:ubuntu
 PI_DOCKERFILE ?= Dockerfile.pi
 MAX_PI_AGENTS ?= 1
-PI_BASE_URL   ?= http://host.containers.internal:8080/v1
+# Apple Container CLI does not implement host.containers.internal
+# (apple/container#346). Containers reach the host via the bridge gateway IP,
+# which matches the .1 address of the configured SUBNET (default
+# 192.168.100.0/24 → gateway 192.168.100.1).
+PI_BASE_URL   ?= http://192.168.100.1:8080/v1
+PI_MODEL_ID   ?= mlx-community/gemma-4-26b-a4b-it-4bit
 
 build-pi:
 	container build --no-cache -f $(PI_DOCKERFILE) -t $(PI_IMAGE) .
@@ -269,6 +274,7 @@ spawn-pi: network
 		-v $(GIT_ROOT):/workspace \
 		-v $(WORKTREES_DIR):/worktrees \
 		-e PI_BASE_URL=$(PI_BASE_URL) \
+		-e PI_MODEL_ID=$(PI_MODEL_ID) \
 		$(PI_IMAGE) \
 		--worktree "$(BRANCH)" --task "$(TASK)"
 	@echo "[pi-spawn] Agent started. View logs: make follow-pi-agent BRANCH=$(BRANCH)"

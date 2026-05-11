@@ -23,6 +23,11 @@ Feature: PI agent lifecycle
     Then the command exits successfully
     And the make vars include CPUS="4" and MEMORY="8G" and PI_BASE_URL="http://10.0.0.5:9000/v1"
 
+  Scenario: Spawn with custom model id
+    When I run "q pi spawn --branch pi/refactor --task work --model-id mlx-community/llama-3.1-8b"
+    Then the command exits successfully
+    And the make vars include PI_MODEL_ID="mlx-community/llama-3.1-8b"
+
   Scenario: List PI agents
     When I run "q pi list"
     Then the command exits successfully

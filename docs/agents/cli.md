@@ -170,7 +170,8 @@ Spawns a detached headless PI agent (local LLM backend).
 q pi spawn --branch pi/refactor --task "rename ambiguous helpers"
 q pi spawn --branch pi/explore --task "explore the auth module" \
            --cpus 4 --memory 8G \
-           --base-url http://10.0.0.5:8080/v1
+           --base-url http://192.168.100.1:8080/v1 \
+           --model-id mlx-community/llama-3.1-8b
 ```
 
 | Option | Required | Description |
@@ -180,7 +181,8 @@ q pi spawn --branch pi/explore --task "explore the auth module" \
 | `--cpus` | no | CPU count |
 | `--memory` | no | Memory limit (e.g. `3G`) |
 | `--image` | no | PI image tag override |
-| `--base-url` | no | OpenAI-compatible base URL of the local LLM |
+| `--base-url` | no | OpenAI-compatible base URL of the local LLM (default = bridge gateway IP, `host.containers.internal` is NOT supported by Apple Container CLI) |
+| `--model-id` | no | Model id served by `mlx_lm.server` (must match `/v1/models` response) |
 
 The Makefile enforces **`MAX_PI_AGENTS=1`** by default — `spawn` will refuse
 to launch a second PI agent while one is still running. The model + 6 GB

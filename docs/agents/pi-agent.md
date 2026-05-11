@@ -18,31 +18,45 @@ backed by a **local `mlx_lm.server`** running on the host (managed from
 ## Architecture at a glance
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ Host (macOS, Apple Silicon)                                      │
-│                                                                  │
-│  ┌─────────────────┐                                             │
-│  │ iac CLI         │   mlx_lm.server (Gemma-4-26b-4bit, 4-bit)   │
-│  │ uv run iac      │──▶ 0.0.0.0:8080 (OpenAI-compatible)          │
-│  │ server start    │                                             │
-│  └─────────────────┘                                             │
-│                                                                  │
-│  ┌──────────────────────────────────────────┐                    │
-│  │ Apple Container: claude-pi:ubuntu        │                    │
-│  │ (Ubuntu 26.04, linux/arm64, kernel 7.x)  │                    │
-│  │                                          │                    │
-│  │   pi agent run --task "..."              │                    │
-│  │     │                                    │                    │
-│  │     ▼                                    │                    │
-│  │   PI_BASE_URL=http://host.containers     │                    │
-│  │     .internal:8080/v1                    │                    │
-│  └──────────────────────────────────────────┘                    │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ Host (macOS 26, Apple Silicon)                                       │
+│                                                                      │
+│  ┌─────────────────┐                                                 │
+│  │ iac CLI         │   mlx_lm.server (Gemma-4-26b, 4-bit MLX)        │
+│  │ uv run iac      │──▶ 0.0.0.0:8080 (OpenAI-compatible)             │
+│  │ server start    │                                                 │
+│  └─────────────────┘                                                 │
+│           ▲                                                          │
+│           │ HTTP                                                     │
+│           │ http://192.168.100.1:8080/v1  (bridge gateway IP)        │
+│           │                                                          │
+│  ┌────────┴─────────────────────────────────────────┐                │
+│  │ Apple Container: claude-pi:ubuntu                │                │
+│  │ (Ubuntu 26.04, linux/arm64, kernel 7.x)          │                │
+│  │                                                  │                │
+│  │   pi -p "<task>" --model local/<model_id>        │                │
+│  │     │                                            │                │
+│  │     ▼                                            │                │
+│  │   ~/.pi/agent/models.json (generated at startup) │                │
+│  │     provider "local" → baseUrl PI_BASE_URL       │                │
+│  └──────────────────────────────────────────────────┘                │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-The PI container does NOT carry its own model. It hits the host's
-`mlx_lm.server` via the well-known DNS name `host.containers.internal`
-exposed by Apple Container's bridge network.
+The PI container does NOT carry its own model. It reaches the host's
+`mlx_lm.server` via the **gateway IP** of the bridge network created by
+Apple Container CLI (`192.168.100.1` for the default
+`192.168.100.0/24` subnet).
+
+### Why not `host.containers.internal`?
+
+Apple Container CLI does **not** implement `host.containers.internal`
+(see [apple/container#346](https://github.com/apple/container/issues/346)).
+DNS lookups for that hostname either fail immediately or time out. The
+workaround is to use the bridge gateway IP, which the host owns. If you
+override the default subnet via `make network SUBNET=10.20.0.0/24`,
+remember to also override `PI_BASE_URL` accordingly
+(`make spawn-pi PI_BASE_URL=http://10.20.0.1:8080/v1 …`).
 
 ## Open/Closed extension model
 
@@ -122,14 +136,52 @@ The `status.json` written by `entrypoint-pi.sh` includes
 `"agent_kind": "pi"`, which `list-pi-agents` uses to filter PI worktrees
 from regular Claude worktrees that share the same `AGENTS_HOME`.
 
+## The `pi` CLI and `models.json`
+
+The PI container ships the [pi-coding-agent](https://pi.dev/) (`pi` CLI)
+installed via `npm install -g @earendil-works/pi-coding-agent`. Headless
+invocation: `pi -p "<prompt>" --model <provider>/<model_id>`.
+
+`entrypoint-pi.sh` generates `~/.pi/agent/models.json` on every start
+from these env vars:
+
+| Env var | Purpose | Default |
+|---|---|---|
+| `PI_BASE_URL` | OpenAI-compatible base URL of the local server | `http://192.168.100.1:8080/v1` |
+| `PI_MODEL_ID` | Model id served by `mlx_lm.server` (also the `id` field in `/v1/models`) | `mlx-community/gemma-4-26b-a4b-it-4bit` |
+| `PI_PROVIDER_NAME` | Provider key in `models.json` | `local` |
+
+Generated file:
+
+```json
+{
+  "providers": {
+    "local": {
+      "baseUrl": "http://192.168.100.1:8080/v1",
+      "api": "openai-completions",
+      "apiKey": "none",
+      "compat": { "supportsDeveloperRole": false },
+      "models": [ { "id": "mlx-community/gemma-4-26b-a4b-it-4bit" } ]
+    }
+  }
+}
+```
+
+`compat.supportsDeveloperRole: false` is required because `mlx_lm.server`
+does not understand OpenAI's `developer` role — pi sends a regular `system`
+message instead.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | `spawn-pi` fails with `MAX_PI_AGENTS=1 reached` | Another PI agent is still running | `make stop-pi-agent BRANCH=<the-old-one>` |
 | Container starts but PI agent immediately exits with HTTP error | Local server not running | `uv run iac server status` then `iac server start` |
-| Container can't resolve `host.containers.internal` | Bridge gateway differs in your network | `q pi spawn --base-url http://192.168.100.1:8080/v1 …` (use the gateway IP of `claude-agent-net`) |
+| Container can't reach `192.168.100.1:8080` | Custom `SUBNET` or post-restart Apple Container bug | Pass `--base-url http://<your-gateway-ip>:8080/v1` to `q pi spawn`, or `make network SUBNET=192.168.100.0/24` to reset to the default |
+| `pi` errors with "model not found" | `PI_MODEL_ID` does not match what mlx_lm.server reports at `/v1/models` | `curl http://localhost:8080/v1/models` on the host, then `q pi spawn --model-id <id>` |
 | `iac server start` says "already running" but `status` shows stopped | Stale PID file | `rm ~/.iac/server.pid && uv run iac server start` |
+| Connection from container hangs indefinitely after macOS restart | Known Apple Container CLI bug — bridge gateway not always reachable post-restart | `container network delete claude-agent-net && make network` |
+| First curl from container right after `iac server start` times out, but localhost works | Warm-up gap — `mlx_lm.server` accepts on `127.0.0.1:8080` before the bridge IP is fully reachable (the model still loading into RAM) | Wait ~5-15 s after `iac server status` first reports reachable; or curl from the container until success before spawning the PI agent |
 
 ## Why Ubuntu 26.04 (not Chainguard Wolfi)
 

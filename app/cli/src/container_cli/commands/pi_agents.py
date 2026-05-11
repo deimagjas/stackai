@@ -68,6 +68,13 @@ def spawn(
             help="Override the OpenAI-compatible base URL for the local LLM",
         ),
     ] = None,
+    model_id: Annotated[
+        str | None,
+        typer.Option(
+            "--model-id",
+            help="Override the model id served by mlx_lm.server",
+        ),
+    ] = None,
 ) -> None:
     """Spawn a detached headless PI agent (local mlx_lm.server backend).
 
@@ -87,6 +94,8 @@ def spawn(
         vars["PI_IMAGE"] = image
     if base_url:
         vars["PI_BASE_URL"] = base_url
+    if model_id:
+        vars["PI_MODEL_ID"] = model_id
     run_make("spawn-pi", vars)
 
 

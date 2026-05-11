@@ -288,7 +288,9 @@ uv run iac server status   # verify it is reachable
 
 PI agents do NOT need `CLAUDE_CONTAINER_OAUTH_TOKEN`. They authenticate
 against the local server via `PI_BASE_URL` (default
-`http://host.containers.internal:8080/v1`).
+`http://192.168.100.1:8080/v1` — the **gateway IP** of the default bridge
+subnet; `host.containers.internal` is NOT implemented in Apple Container
+CLI, see apple/container#346).
 
 Preferred: use the CLI wrapper.
 
@@ -305,6 +307,12 @@ cd <git-root>/config && make spawn-pi \
 
 Container name pattern: `<project>-pi-<sanitized-branch>` (note the
 `-pi-` segment that distinguishes them from Claude agents).
+
+If the user customised the bridge subnet, pass `--base-url`:
+
+```bash
+q pi spawn --branch pi/x --task "..." --base-url http://<gateway-ip>:8080/v1
+```
 
 ### Memory ceiling — MAX_PI_AGENTS=1
 

@@ -13,8 +13,16 @@
 #   -v <parent>/.worktrees:/worktrees         → worktrees directory
 #
 # Expected env vars:
-#   PI_BASE_URL  → OpenAI-compatible base URL of mlx_lm.server on host
-#                  (default in image: http://host.containers.internal:8080/v1)
+#   PI_BASE_URL       → OpenAI-compatible base URL of mlx_lm.server on host.
+#                       Apple Container CLI does NOT implement
+#                       host.containers.internal (apple/container#346), so
+#                       the default is the bridge gateway IP: 192.168.100.1
+#                       (gateway of the default 192.168.100.0/24 subnet).
+#   PI_MODEL_ID       → model id served by mlx_lm.server (matches the
+#                       --model flag passed when starting the server).
+#   PI_PROVIDER_NAME  → provider key written into ~/.pi/agent/models.json
+#                       (default: "local"). pi addresses the model as
+#                       "<PI_PROVIDER_NAME>/<PI_MODEL_ID>".
 #
 # Unlike entrypoint.sh (Claude), this entrypoint does NOT copy any
 # Claude credentials — PI agents authenticate against the local model
@@ -65,6 +73,37 @@ setup_agent_perms() {
     chown -R agent:agent "$WORKTREE_PATH"
 }
 
+write_pi_models_config() {
+    # Materialise ~/.pi/agent/models.json from env vars so the `pi` CLI knows
+    # how to reach the local mlx_lm.server. Written to the agent user's home
+    # since that is where `pi` looks for it.
+    local pi_dir="/home/agent/.pi/agent"
+    local base_url="${PI_BASE_URL:-http://192.168.100.1:8080/v1}"
+    local model_id="${PI_MODEL_ID:-mlx-community/gemma-4-26b-a4b-it-4bit}"
+    local provider="${PI_PROVIDER_NAME:-local}"
+
+    mkdir -p "$pi_dir"
+    cat > "$pi_dir/models.json" <<EOF
+{
+  "providers": {
+    "${provider}": {
+      "baseUrl": "${base_url}",
+      "api": "openai-completions",
+      "apiKey": "none",
+      "compat": { "supportsDeveloperRole": false },
+      "models": [
+        { "id": "${model_id}" }
+      ]
+    }
+  }
+}
+EOF
+    chown -R agent:agent /home/agent/.pi
+    echo "[pi-entrypoint] models.json → ${pi_dir}/models.json"
+    echo "[pi-entrypoint] backend: ${base_url}"
+    echo "[pi-entrypoint] model:   ${provider}/${model_id}"
+}
+
 write_status() {
     local phase="$1"; shift
     local now
@@ -98,13 +137,16 @@ run_agent() {
     write_status "working"
     emit_marker "working"
 
-    echo "[pi-entrypoint] Backend: ${PI_BASE_URL:-<unset>}"
+    local provider="${PI_PROVIDER_NAME:-local}"
+    local model_id="${PI_MODEL_ID:-mlx-community/gemma-4-26b-a4b-it-4bit}"
+
     echo "[pi-entrypoint] Task: ${AGENT_TASK}"
     echo "---"
 
     set +e
-    su-exec agent env HOME=/home/agent PI_BASE_URL="${PI_BASE_URL:-}" \
-        pi agent run --task "$AGENT_TASK" 2>&1 | tee "$AGENT_DIR/agent.log"
+    su-exec agent env HOME=/home/agent \
+        pi -p "$AGENT_TASK" --model "${provider}/${model_id}" \
+        2>&1 | tee "$AGENT_DIR/agent.log"
     local exit_code=${PIPESTATUS[0]}
     set -e
 
@@ -158,11 +200,14 @@ main() {
         create_worktree
         if [[ -n "$AGENT_TASK" ]]; then
             setup_agent_perms
+            write_pi_models_config
             run_agent
         else
+            write_pi_models_config
             run_interactive
         fi
     else
+        write_pi_models_config
         run_interactive
     fi
 }
