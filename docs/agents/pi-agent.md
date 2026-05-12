@@ -171,6 +171,51 @@ Generated file:
 does not understand OpenAI's `developer` role — pi sends a regular `system`
 message instead.
 
+### Discipline preamble (every task is wrapped)
+
+Local models follow instructions much more literally than Claude.
+`entrypoint-pi.sh` prepends a structural preamble to **every** task before
+invoking `pi -p`, regardless of how the orchestrator phrased it. The model
+actually sees:
+
+```
+You are running inside a git worktree at <cwd>. Every file path in this task
+must be interpreted relative to that directory — never use absolute paths
+beginning with /workspace or any other absolute prefix.
+
+Rules:
+1. Modify ONLY the files explicitly named in the task. Do not create test
+   files, documentation, or auxiliary files unless the task asks for them.
+2. After making your changes you MUST run, in this exact order:
+       git add -A
+       git commit -m "<conventional-commits message describing the change>"
+       git log -1 --oneline
+   Include that last "git log -1 --oneline" line at the end of your response.
+3. If you cannot complete the task, DO NOT commit. Briefly explain why instead.
+
+Task:
+<your original --task string>
+```
+
+This is structural, not advisory — every PI agent run inherits these rules,
+so a user spawning directly via `make spawn-pi TASK="..."` still gets them.
+
+### Sampling defaults
+
+The iac CLI starts `mlx_lm.server` with sampling parameters tuned for
+coding tasks (low temperature, narrow nucleus). Override if needed:
+
+| Parameter | Default | Override |
+|---|---|---|
+| `temp` | `0.2` | `uv run iac server start --temp 0.4` |
+| `top_p` | `0.9` | `uv run iac server start --top-p 0.95` |
+
+Pi-coding-agent does **not** send `temperature` or `top_p` on per-request
+basis (its `models.json` schema doesn't expose them, nor does its CLI), so
+the server defaults are what every PI agent actually uses. Lowering temp
+markedly reduces the "model invents extra files" failure mode observed
+during the format_bytes test.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

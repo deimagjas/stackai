@@ -251,8 +251,6 @@ build-pi:
 	container build --no-cache -f $(PI_DOCKERFILE) -t $(PI_IMAGE) .
 
 spawn-pi: network
-	@[ -n "$(BRANCH)" ] || (echo "[error] BRANCH is required"; exit 1)
-	@[ -n "$(TASK)" ]   || (echo "[error] TASK is required"; exit 1)
 	@RUNNING=$$(container list 2>/dev/null | grep -c "$(PROJECT_NAME)-pi-" || true); \
 	 if [ "$$RUNNING" -ge "$(MAX_PI_AGENTS)" ]; then \
 	   echo "[error] MAX_PI_AGENTS=$(MAX_PI_AGENTS) reached ($$RUNNING PI agents running)."; \

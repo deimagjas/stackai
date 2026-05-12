@@ -113,6 +113,35 @@ write_status() {
         > "${AGENT_DIR}/status.json" ) 2>/dev/null || true
 }
 
+wrap_task_with_discipline() {
+    # Prepends a structural preamble to AGENT_TASK so the model inherits
+    # discipline regardless of how the orchestrator phrased the task.
+    # Three problems this addresses (from the format_bytes test run):
+    #   1. Models follow absolute paths literally, escaping the worktree.
+    #   2. pi -p has no postcondition that verifies an actual commit happened.
+    #   3. With temp > 0 the model invents extra files (tests, README, etc.).
+    local cwd
+    cwd=$(pwd)
+    cat <<EOF
+You are running inside a git worktree at ${cwd}. Every file path in this task
+must be interpreted relative to that directory — never use absolute paths
+beginning with /workspace or any other absolute prefix.
+
+Rules:
+1. Modify ONLY the files explicitly named in the task. Do not create test
+   files, documentation, or auxiliary files unless the task asks for them.
+2. After making your changes you MUST run, in this exact order:
+       git add -A
+       git commit -m "<conventional-commits message describing the change>"
+       git log -1 --oneline
+   Include that last "git log -1 --oneline" line at the end of your response.
+3. If you cannot complete the task, DO NOT commit. Briefly explain why instead.
+
+Task:
+${AGENT_TASK}
+EOF
+}
+
 emit_marker() {
     local phase="$1"; shift
     echo "[agent:status] PHASE=${phase} BRANCH=${WORKTREE_BRANCH} KIND=pi $*"
@@ -141,11 +170,15 @@ run_agent() {
     local model_id="${PI_MODEL_ID:-mlx-community/gemma-4-26b-a4b-it-4bit}"
 
     echo "[pi-entrypoint] Task: ${AGENT_TASK}"
+    echo "[pi-entrypoint] (wrapped with discipline preamble — see wrap_task_with_discipline)"
     echo "---"
+
+    local wrapped_task
+    wrapped_task=$(wrap_task_with_discipline)
 
     set +e
     su-exec agent env HOME=/home/agent \
-        pi -p "$AGENT_TASK" --model "${provider}/${model_id}" \
+        pi -p "$wrapped_task" --model "${provider}/${model_id}" \
         2>&1 | tee "$AGENT_DIR/agent.log"
     local exit_code=${PIPESTATUS[0]}
     set -e

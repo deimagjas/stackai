@@ -21,7 +21,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import typer
@@ -49,8 +49,8 @@ class ServerConfig:
     decode_concurrency: int = 4
     prompt_concurrency: int = 2
     prefill_step_size: int = 1024
-    temp: float = 0.9
-    top_p: float = 0.95
+    temp: float = 0.2
+    top_p: float = 0.9
     top_k: int = 40
     min_p: float = 0.0
     max_tokens: int = 2048
@@ -124,6 +124,16 @@ def server_start(
         "--detach/--foreground",
         help="Run server in background (default) or foreground.",
     ),
+    temp: float | None = typer.Option(
+        None,
+        "--temp",
+        help="Override sampling temperature (default: ServerConfig.temp = 0.2).",
+    ),
+    top_p: float | None = typer.Option(
+        None,
+        "--top-p",
+        help="Override nucleus sampling p (default: ServerConfig.top_p = 0.9).",
+    ),
 ) -> None:
     """Start mlx_lm.server with the project defaults."""
     existing_pid = _read_pid()
@@ -134,10 +144,15 @@ def server_start(
         raise typer.Exit(0)
 
     cfg = ServerConfig()
+    if temp is not None:
+        cfg = replace(cfg, temp=temp)
+    if top_p is not None:
+        cfg = replace(cfg, top_p=top_p)
     cmd = cfg.command()
 
     console.print(f"[cyan][server][/] starting {cfg.model}")
     console.print(f"[cyan][server][/] listening on http://{cfg.host}:{cfg.port}")
+    console.print(f"[cyan][server][/] sampling: temp={cfg.temp} top_p={cfg.top_p}")
 
     if detach:
         log = _log_file().open("ab")

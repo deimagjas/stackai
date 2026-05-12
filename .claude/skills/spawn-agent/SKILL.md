@@ -341,6 +341,49 @@ PI worktrees from Claude worktrees in `list-pi-agents`.
 - The two agent classes share `AGENTS_HOME` and the bridge network, but
   their containers, images, and entrypoints are independent.
 
+### Formulating tasks for PI agents
+
+A Gemma-class local model is much more literal than Claude. Three rules
+when writing the `--task` string:
+
+1. **Use only relative paths.** `iac/main.py`, not `/workspace/iac/main.py`.
+   The agent already `cd`s into the worktree; absolute paths cause it to
+   escape the worktree and write to the main repo's working copy.
+2. **Bound the scope explicitly.** End the task with
+   `Modify ONLY <file>. Do not create any other files.` Without this, the
+   model often invents extra files ("just in case" tests, READMEs, etc.).
+3. **Ask for a commit verification line.** Add
+   `After the edit, commit and include 'git log -1 --oneline' at the end of your response.`
+   This gives the orchestrator a string-level handle for "did the agent
+   actually commit?" beyond just checking `status.json`.
+
+`entrypoint-pi.sh` already prepends a structural preamble with rules 1–3
+to **every** PI task — so even tasks crafted by hand or by a different
+orchestrator inherit the discipline. Restating the rules in the user-facing
+task wording still helps reinforce them with the model.
+
+### Verifying a PI agent completed successfully
+
+`exit_code == 0` is not enough. The model can produce a confident-sounding
+final response while having made no actual changes. Always check:
+
+```bash
+q pi status --branch <branch>
+# → status.json must show:
+#     "phase":   "completed"
+#     "commits": N   where N >= 1 (or 0 only if the task was read-only)
+```
+
+Plus, before merging:
+
+```bash
+git diff --name-only main..<branch>   # files actually changed
+git log -1 --oneline <branch>         # commit message + sha
+```
+
+If `commits == 0` but the task asked for code changes, report this to the
+user as a failure regardless of `exit_code`. Do NOT merge the empty branch.
+
 ## Apple Container CLI reference (key commands)
 
 ```
