@@ -1,65 +1,19 @@
 # =============================================================================
-# PI Agent — Multistage Ubuntu 26.04 (Linux kernel 7.x) + Rust tools
-# Hardened · Minimal · ARM64 (Apple Silicon / M4)
+# PI Agent container — Ubuntu 26.04 ARM64 + pi-coding-agent + local mlx_lm
 #
-# Stage 1 — builder  : Ubuntu 26.04 + Rust toolchain → compila herramientas
-# Stage 2 — runtime  : Ubuntu 26.04 + PI SDK         → local LLM backend
+# - Base:        ubuntu:26.04 (linux/arm64, kernel 7.x)
+# - Agent CLI:   `pi` (@earendil-works/pi-coding-agent) — headless: `pi -p "..."`
+# - Backend:     local mlx_lm.server on the host, reached at PI_BASE_URL
+# - Auth:        none (no Claude credentials required)
+# - Runs as:     non-root `agent` user (su-exec drops from root at runtime)
 #
-# Por qué Ubuntu 26.04 en vez de Wolfi:
-#   PI agents necesitan un kernel Linux 7.x (mejoras de io_uring y memory
-#   accounting). Ubuntu 26.04 LTS es el LTS que ships con kernel 7.x en
-#   imagen ARM64, y mantiene un buen footprint con apt --no-install-recommends.
-#
-# Por qué un Dockerfile separado en vez de extender Dockerfile.wolfi:
-#   Open/Closed Principle — Dockerfile.wolfi sigue sin tocar para los
-#   agentes Claude. PI agents son una extensión paralela, no una
-#   modificación del flujo existente.
-#
-# Backend LLM:
-#   El contenedor NO embarca un modelo. Se conecta al `mlx_lm.server`
-#   corriendo en el host (gestionado por `uv run iac server start`
-#   desde /iac). Apple Container CLI no implementa
-#   `host.containers.internal` (issue apple/container#346), así que el
-#   contenedor llega al host vía la IP del gateway del bridge network.
-#   Por defecto SUBNET=192.168.100.0/24 → gateway 192.168.100.1.
-#   ⚠️ El modelo Gemma-4-26b + 6GB de prompt cache deja poco margen de
-#   RAM. El Makefile aplica MAX_PI_AGENTS=1 por defecto.
+# Operator guide and troubleshooting: docs/agents/pi-agent.md
 # =============================================================================
 
-
-# ── Stage 1: builder ──────────────────────────────────────────────────────────
-FROM --platform=linux/arm64 ubuntu:26.04 AS builder
-
-ENV DEBIAN_FRONTEND=noninteractive \
-    HOME=/root \
-    PATH="/root/.cargo/bin:$PATH"
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        curl \
-        build-essential \
-        pkg-config \
-        libssl-dev \
-        ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-       | sh -s -- -y --default-toolchain stable --no-modify-path \
-    && cargo install \
-        ripgrep \
-        fd-find \
-        bat \
-        eza \
-        du-dust \
-        procs \
-        bottom \
-    && rm -rf /root/.cargo/registry /root/.cargo/git
-
-
-# ── Stage 2: runtime ──────────────────────────────────────────────────────────
-FROM --platform=linux/arm64 ubuntu:26.04 AS runtime
+FROM --platform=linux/arm64 ubuntu:26.04
 
 LABEL maintainer="pi-agent" \
-      description="Hardened PI agent — Ubuntu 26.04 + local mlx_lm backend" \
+      description="PI agent — Ubuntu 26.04 + local mlx_lm backend" \
       org.opencontainers.image.base.name="ubuntu:26.04"
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -74,6 +28,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PI_PROVIDER_NAME=local \
     PI_DISABLE_AUTOUPDATE=1
 
+# System packages + Rust CLIs prebuilt by Ubuntu (no cargo build needed).
+# fd-find and bat ship with renamed binaries to avoid Debian collisions;
+# we symlink them back to the upstream names for ergonomics.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash \
@@ -91,23 +48,20 @@ RUN apt-get update \
         npm \
         python3 \
         python3-pip \
+        ripgrep \
+        fd-find \
+        bat \
+        eza \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
+    && ln -sf /usr/bin/batcat /usr/local/bin/bat \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /root/.cargo/bin/rg     /usr/local/bin/rg
-COPY --from=builder /root/.cargo/bin/fd     /usr/local/bin/fd
-COPY --from=builder /root/.cargo/bin/bat    /usr/local/bin/bat
-COPY --from=builder /root/.cargo/bin/eza    /usr/local/bin/eza
-COPY --from=builder /root/.cargo/bin/dust   /usr/local/bin/dust
-COPY --from=builder /root/.cargo/bin/procs  /usr/local/bin/procs
-COPY --from=builder /root/.cargo/bin/btm    /usr/local/bin/btm
-
-# PI coding agent — terminal coding agent from pi.dev (badlogic/pi-mono)
-# Installs the `pi` CLI globally. Headless invocation: `pi -p "<prompt>"`.
+# PI coding agent — `pi` CLI from @earendil-works/pi-coding-agent.
 # Custom providers live in ~/.pi/agent/models.json (populated by entrypoint-pi.sh).
 ARG PI_PACKAGE=@earendil-works/pi-coding-agent
 RUN npm install -g --no-fund --no-audit "${PI_PACKAGE}"
 
-# Aliases Rust
+# Shell aliases for the installed Rust CLIs
 RUN printf '%s\n' \
     "alias grep='rg --smart-case --follow'" \
     "alias find='fd --follow'" \
@@ -116,9 +70,6 @@ RUN printf '%s\n' \
     "alias ll='eza -la --git'" \
     "alias la='eza -la'" \
     "alias lt='eza --tree --level=2'" \
-    "alias du='dust'" \
-    "alias ps='procs'" \
-    "alias top='btm'" \
     > /etc/profile.d/rust-aliases.sh
 
 RUN echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.bashrc \
@@ -140,13 +91,14 @@ RUN printf '[init]\n\tdefaultBranch = main\n[core]\n\teditor = true\n[advice]\n\
     > /home/agent/.gitconfig \
     && chown agent:agent /home/agent/.gitconfig
 
-# su-exec equivalent (same Python shim as Dockerfile.wolfi)
-# Drops to the specified user via os.setuid/setgid then exec.
+# su-exec equivalent: drops to the specified user via os.setuid/setgid then exec.
+# Needed because the entrypoint must do root-only work (chown of the host-mounted
+# worktree, models.json for the agent user) before handing off to `pi` as agent.
 RUN printf '#!/usr/bin/env python3\nimport os, sys, pwd\npw = pwd.getpwnam(sys.argv[1])\nos.setgid(pw.pw_gid)\nos.setuid(pw.pw_uid)\nos.execvp(sys.argv[2], sys.argv[2:])\n' \
     > /usr/local/bin/su-exec \
     && chmod +x /usr/local/bin/su-exec
 
-# ── Entrypoint (PI variant — no Claude credential copy) ───────────────────────
+# Entrypoint (PI variant — no Claude credential copy)
 COPY entrypoint-pi.sh /usr/local/bin/entrypoint-pi.sh
 RUN chmod +x /usr/local/bin/entrypoint-pi.sh
 

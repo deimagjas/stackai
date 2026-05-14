@@ -160,22 +160,23 @@ run_agent() {
     local start_epoch
     start_epoch=$(date +%s)
 
-    write_status "starting"
-    emit_marker "starting"
-
+    # Single phase write — there is no meaningful initialization gap between
+    # entering run_agent and invoking pi, so we go straight to "working".
     write_status "working"
     emit_marker "working"
 
     local provider="${PI_PROVIDER_NAME:-local}"
     local model_id="${PI_MODEL_ID:-mlx-community/gemma-4-26b-a4b-it-4bit}"
 
-    echo "[pi-entrypoint] Task: ${AGENT_TASK}"
-    echo "[pi-entrypoint] (wrapped with discipline preamble — see wrap_task_with_discipline)"
+    echo "[pi-entrypoint] Task: ${AGENT_TASK} (wrapped with discipline preamble)"
     echo "---"
 
     local wrapped_task
     wrapped_task=$(wrap_task_with_discipline)
 
+    # su-exec drops privileges from root to `agent` so `pi` runs unprivileged.
+    # Root is needed for the setup steps before this (chown the host-mounted
+    # worktree, write /home/agent/.pi/agent/models.json); `pi` itself does not.
     set +e
     su-exec agent env HOME=/home/agent \
         pi -p "$wrapped_task" --model "${provider}/${model_id}" \
