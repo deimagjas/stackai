@@ -25,6 +25,10 @@ class TestAppStructure:
         group_names = [g.name for g in app.registered_groups]
         assert "agents" in group_names
 
+    def test_has_pi_subapp(self):
+        group_names = [g.name for g in app.registered_groups]
+        assert "pi" in group_names
+
 
 class TestHelp:
     def test_help_exits_zero(self):

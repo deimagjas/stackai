@@ -428,3 +428,32 @@ The Alpine CI image is sufficient for verifying that the Dockerfile syntax is co
 | Base image | Chainguard Wolfi (glibc) | Alpine (musl) |
 | Purpose | Run headless Claude agents | Build validation |
 | Claude Code compatible | Yes (`glibc` + `posix_getdents`) | No (musl lacks `posix_getdents`) |
+
+---
+
+## Dockerfile.pi — PI agent variant (Ubuntu 26.04, kernel 7.x)
+
+`config/Dockerfile.pi` builds a **separate image** (`claude-pi:ubuntu`) for
+the PI agent class. It mirrors the security hardening of `Dockerfile.wolfi`
+(non-root `agent` user, `su-exec` shim, minimal package set) but uses
+Ubuntu 26.04 LTS as its base instead of Chainguard Wolfi because PI agent
+workloads benefit from Linux kernel 7.x runtime behaviour
+(`io_uring`, memory accounting).
+
+| Aspect | `Dockerfile.wolfi` (Claude) | `Dockerfile.pi` (PI) |
+|---|---|---|
+| Base | `cgr.dev/chainguard/wolfi-base` | `ubuntu:26.04` |
+| Kernel target | glibc on whatever kernel host provides | Linux 7.x (matches Ubuntu 26.04 LTS) |
+| Cloud auth tooling | Claude CLI + OAuth token | none — uses local `mlx_lm.server` |
+| Backend | Anthropic API | host's `mlx_lm.server` via `host.containers.internal:8080` |
+| Entrypoint | `entrypoint.sh` (copies credentials) | `entrypoint-pi.sh` (no credentials) |
+| Env vars | `CLAUDE_CODE_OAUTH_TOKEN` | `PI_BASE_URL` |
+| Memory note | 3 GB default; safe to scale parallel | 3 GB default but **MAX_PI_AGENTS=1** by default |
+
+The two images do not share layers (different base), but they share the
+non-root `agent` user pattern, the `su-exec` Python shim, and the
+`status.json` lifecycle format — which means `list-agents`-style tooling
+can read both seamlessly via the `agent_kind` field.
+
+For the full operational guide on PI agents (setup, spawn, monitor,
+troubleshoot), see [pi-agent.md](./pi-agent.md).

@@ -1,0 +1,109 @@
+# =============================================================================
+# PI Agent container — Ubuntu 26.04 ARM64 + pi-coding-agent + local mlx_lm
+#
+# - Base:        ubuntu:26.04 (linux/arm64, kernel 7.x)
+# - Agent CLI:   `pi` (@earendil-works/pi-coding-agent) — headless: `pi -p "..."`
+# - Backend:     local mlx_lm.server on the host, reached at PI_BASE_URL
+# - Auth:        none (no Claude credentials required)
+# - Runs as:     non-root `agent` user (su-exec drops from root at runtime)
+#
+# Operator guide and troubleshooting: docs/agents/pi-agent.md
+# =============================================================================
+
+FROM --platform=linux/arm64 ubuntu:26.04
+
+LABEL maintainer="pi-agent" \
+      description="PI agent — Ubuntu 26.04 + local mlx_lm backend" \
+      org.opencontainers.image.base.name="ubuntu:26.04"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    TERM=xterm-256color \
+    PATH="/root/.local/bin:/usr/local/bin:$PATH" \
+    BAT_PAGER="" \
+    BAT_STYLE="numbers,changes,header" \
+    PI_BASE_URL=http://192.168.100.1:8080/v1 \
+    PI_MODEL_ID=mlx-community/gemma-4-26b-a4b-it-4bit \
+    PI_PROVIDER_NAME=local \
+    PI_DISABLE_AUTOUPDATE=1
+
+# System packages + Rust CLIs prebuilt by Ubuntu (no cargo build needed).
+# fd-find and bat ship with renamed binaries to avoid Debian collisions;
+# we symlink them back to the upstream names for ergonomics.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        curl \
+        wget \
+        git \
+        git-lfs \
+        openssh-client \
+        ca-certificates \
+        jq \
+        unzip \
+        gzip \
+        tmux \
+        nodejs \
+        npm \
+        python3 \
+        python3-pip \
+        ripgrep \
+        fd-find \
+        bat \
+        eza \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
+    && ln -sf /usr/bin/batcat /usr/local/bin/bat \
+    && rm -rf /var/lib/apt/lists/*
+
+# PI coding agent — `pi` CLI from @earendil-works/pi-coding-agent.
+# Custom providers live in ~/.pi/agent/models.json (populated by entrypoint-pi.sh).
+ARG PI_PACKAGE=@earendil-works/pi-coding-agent
+RUN npm install -g --no-fund --no-audit "${PI_PACKAGE}"
+
+# Shell aliases for the installed Rust CLIs
+RUN printf '%s\n' \
+    "alias grep='rg --smart-case --follow'" \
+    "alias find='fd --follow'" \
+    "alias cat='bat --paging=never'" \
+    "alias ls='eza'" \
+    "alias ll='eza -la --git'" \
+    "alias la='eza -la'" \
+    "alias lt='eza --tree --level=2'" \
+    > /etc/profile.d/rust-aliases.sh
+
+RUN echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.bashrc \
+    && echo 'source /etc/profile.d/rust-aliases.sh' >> /root/.profile
+
+# Git config base (root)
+RUN git config --global init.defaultBranch main \
+    && git config --global core.editor "true" \
+    && git config --global advice.detachedHead false
+
+# Non-root user for headless PI agents (parity with Dockerfile.wolfi)
+RUN groupadd --system agent \
+    && useradd --system --gid agent --home-dir /home/agent --shell /bin/bash agent \
+    && mkdir -p /home/agent \
+    && chown -R agent:agent /home/agent
+
+# Git config for agent user
+RUN printf '[init]\n\tdefaultBranch = main\n[core]\n\teditor = true\n[advice]\n\tdetachedHead = false\n[user]\n\temail = agent@container\n\tname = PI Agent\n' \
+    > /home/agent/.gitconfig \
+    && chown agent:agent /home/agent/.gitconfig
+
+# su-exec equivalent: drops to the specified user via os.setuid/setgid then exec.
+# Needed because the entrypoint must do root-only work (chown of the host-mounted
+# worktree, models.json for the agent user) before handing off to `pi` as agent.
+RUN printf '#!/usr/bin/env python3\nimport os, sys, pwd\npw = pwd.getpwnam(sys.argv[1])\nos.setgid(pw.pw_gid)\nos.setuid(pw.pw_uid)\nos.execvp(sys.argv[2], sys.argv[2:])\n' \
+    > /usr/local/bin/su-exec \
+    && chmod +x /usr/local/bin/su-exec
+
+# Entrypoint (PI variant — no Claude credential copy)
+COPY entrypoint-pi.sh /usr/local/bin/entrypoint-pi.sh
+RUN chmod +x /usr/local/bin/entrypoint-pi.sh
+
+WORKDIR /workspace
+
+SHELL ["/bin/bash", "--login", "-c"]
+ENTRYPOINT ["/usr/local/bin/entrypoint-pi.sh"]
+CMD ["/bin/bash", "--login"]

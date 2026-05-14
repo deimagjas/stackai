@@ -255,6 +255,135 @@ git -C "${GIT_ROOT}" worktree remove --force "${AGENTS_HOME}/${BRANCH}"
 rm -rf "${AGENTS_HOME}/${BRANCH}"
 ```
 
+## PI agents (local mlx_lm backend)
+
+PI agents are a **separate class of agent** that use the pi.dev SDK with a
+LOCAL mlx_lm.server (managed via `/iac`) as their OpenAI-compatible backend,
+instead of the Anthropic cloud API. They are useful when you want agent work
+without consuming Claude API credits, or when the task is well-served by a
+local Gemma-class model.
+
+### When to use a PI agent (detection)
+
+Use a PI agent when the user says any of:
+- "spawn a PI agent" / "lanza un agente PI"
+- "use the local model" / "local LLM"
+- "use mlx_lm" / "use the local server"
+- "no Claude credits" / "without using the API"
+
+Otherwise, default to a regular Claude agent.
+
+### Required setup (one-time)
+
+```bash
+# 1. Build the PI image
+cd <git-root>/config && make build-pi
+
+# 2. Start the local model server (from /iac)
+cd <git-root>/iac && uv sync && uv run iac server start
+uv run iac server status   # verify it is reachable
+```
+
+### Spawning a PI agent
+
+PI agents do NOT need `CLAUDE_CONTAINER_OAUTH_TOKEN`. They authenticate
+against the local server via `PI_BASE_URL` (default
+`http://192.168.100.1:8080/v1` — the **gateway IP** of the default bridge
+subnet; `host.containers.internal` is NOT implemented in Apple Container
+CLI, see apple/container#346).
+
+Preferred: use the CLI wrapper.
+
+```bash
+q pi spawn --branch pi/refactor --task "rename ambiguous helpers"
+```
+
+Equivalent Makefile invocation:
+
+```bash
+cd <git-root>/config && make spawn-pi \
+    BRANCH=pi/refactor TASK="rename ambiguous helpers"
+```
+
+Container name pattern: `<project>-pi-<sanitized-branch>` (note the
+`-pi-` segment that distinguishes them from Claude agents).
+
+If the user customised the bridge subnet, pass `--base-url`:
+
+```bash
+q pi spawn --branch pi/x --task "..." --base-url http://<gateway-ip>:8080/v1
+```
+
+### Memory ceiling — MAX_PI_AGENTS=1
+
+The model + 6 GB prompt cache leaves little RAM headroom on Apple Silicon.
+The Makefile enforces `MAX_PI_AGENTS=1` by default — `spawn-pi` will refuse
+to launch a second PI agent while one is still running. If the user asks
+for multiple PI agents in parallel, **warn them** and recommend stopping
+the existing one first.
+
+### Listing, monitoring, stopping PI agents
+
+```bash
+q pi list                              # only PI agents
+q pi follow --branch pi/refactor       # live logs
+q pi status --branch pi/refactor       # status.json from worktree
+q pi stop   --branch pi/refactor       # stop the container
+```
+
+The status.json for PI agents includes `"agent_kind": "pi"`, used to filter
+PI worktrees from Claude worktrees in `list-pi-agents`.
+
+### Important — do not mix targets
+
+- Use `spawn-pi` / `q pi spawn` for PI agents — never the regular `spawn`.
+- Use `stop-pi-agent` / `q pi stop` for PI agents — never `stop-agent`.
+- The two agent classes share `AGENTS_HOME` and the bridge network, but
+  their containers, images, and entrypoints are independent.
+
+### Formulating tasks for PI agents
+
+A Gemma-class local model is much more literal than Claude. Three rules
+when writing the `--task` string:
+
+1. **Use only relative paths.** `iac/main.py`, not `/workspace/iac/main.py`.
+   The agent already `cd`s into the worktree; absolute paths cause it to
+   escape the worktree and write to the main repo's working copy.
+2. **Bound the scope explicitly.** End the task with
+   `Modify ONLY <file>. Do not create any other files.` Without this, the
+   model often invents extra files ("just in case" tests, READMEs, etc.).
+3. **Ask for a commit verification line.** Add
+   `After the edit, commit and include 'git log -1 --oneline' at the end of your response.`
+   This gives the orchestrator a string-level handle for "did the agent
+   actually commit?" beyond just checking `status.json`.
+
+`entrypoint-pi.sh` already prepends a structural preamble with rules 1–3
+to **every** PI task — so even tasks crafted by hand or by a different
+orchestrator inherit the discipline. Restating the rules in the user-facing
+task wording still helps reinforce them with the model.
+
+### Verifying a PI agent completed successfully
+
+`exit_code == 0` is not enough. The model can produce a confident-sounding
+final response while having made no actual changes. Always check:
+
+```bash
+q pi status --branch <branch>
+# → status.json must show:
+#     "phase":   "completed"
+#     "commits": N   where N >= 1 (or 0 only if the task was read-only)
+```
+
+Plus, before merging:
+
+```bash
+git diff --name-only main..<branch>   # files actually changed
+git log -1 --oneline <branch>         # commit message + sha
+```
+
+If `commits == 0` but the task asked for code changes, report this to the
+user as a failure regardless of `exit_code`. Do NOT merge the empty branch.
+
 ## Apple Container CLI reference (key commands)
 
 ```

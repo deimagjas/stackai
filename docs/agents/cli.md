@@ -146,6 +146,64 @@ directory with a contextual message. This avoids confusing error output.
 
 ---
 
+### `q pi` — PI agent lifecycle sub-commands
+
+PI agents are a separate agent class backed by a local `mlx_lm.server`
+(managed via `/iac`). They do **not** require `CLAUDE_CONTAINER_OAUTH_TOKEN`
+— authentication is local. See [pi-agent.md](./pi-agent.md) for the full
+architecture.
+
+#### `q pi build`
+
+Builds the `claude-pi:ubuntu` image (`Dockerfile.pi`).
+
+```bash
+q pi build
+q pi build --image claude-pi:custom --dockerfile Dockerfile.pi.custom
+```
+
+#### `q pi spawn`
+
+Spawns a detached headless PI agent (local LLM backend).
+
+```bash
+q pi spawn --branch pi/refactor --task "rename ambiguous helpers"
+q pi spawn --branch pi/explore --task "explore the auth module" \
+           --cpus 4 --memory 8G \
+           --base-url http://192.168.100.1:8080/v1 \
+           --model-id mlx-community/llama-3.1-8b
+```
+
+| Option | Required | Description |
+|---|---|---|
+| `--branch` | yes | Git branch for the PI worktree |
+| `--task` | yes | Task description for the PI agent |
+| `--cpus` | no | CPU count |
+| `--memory` | no | Memory limit (e.g. `3G`) |
+| `--image` | no | PI image tag override |
+| `--base-url` | no | OpenAI-compatible base URL of the local LLM (default = bridge gateway IP, `host.containers.internal` is NOT supported by Apple Container CLI) |
+| `--model-id` | no | Model id served by `mlx_lm.server` (must match `/v1/models` response) |
+
+The Makefile enforces **`MAX_PI_AGENTS=1`** by default — `spawn` will refuse
+to launch a second PI agent while one is still running. The model + 6 GB
+prompt cache leaves little RAM headroom on M-series machines.
+
+#### `q pi list`, `q pi logs`, `q pi follow`, `q pi status`, `q pi stop`
+
+```bash
+q pi list                                 # PI agents only
+q pi logs   --branch pi/refactor          # snapshot logs
+q pi follow --branch pi/refactor          # live logs (TTY hand-off)
+q pi status --branch pi/refactor          # status.json (works post-exit)
+q pi stop   --branch pi/refactor          # stop the container
+```
+
+The list command filters by `agent_kind=pi` in `status.json`, so it
+returns only PI worktrees — Claude agent worktrees in the same
+`AGENTS_HOME` are excluded.
+
+---
+
 ### Cleanup commands
 
 ```bash
@@ -183,7 +241,8 @@ app/cli/
             ├── build.py              ← build, clean, clean-network, clean-all
             ├── network.py            ← network
             ├── run.py                ← run, shell
-            └── agents.py             ← spawn, list, logs, follow, stop
+            ├── agents.py             ← spawn, list, logs, follow, stop
+            └── pi_agents.py          ← pi build/spawn/list/logs/follow/stop/status
 ```
 
 ---
@@ -204,3 +263,10 @@ app/cli/
 | `q clean` | `clean` | |
 | `q clean-network` | `clean-network` | |
 | `q clean-all` | `clean-all` | |
+| `q pi build` | `build-pi` | optional `--image`, `--dockerfile` |
+| `q pi spawn` | `spawn-pi` | requires `--branch`, `--task`; no Claude token needed |
+| `q pi list` | `list-pi-agents` | filters by `agent_kind=pi` |
+| `q pi logs` | `logs-pi-agent` | requires `--branch` |
+| `q pi follow` | `follow-pi-agent` | TTY hand-off |
+| `q pi stop` | `stop-pi-agent` | requires `--branch` |
+| `q pi status` | _(local read)_ | reads `$AGENTS_HOME/<b>/.agent/status.json` |
