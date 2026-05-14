@@ -26,7 +26,15 @@ from container_cli.commands.pi_agents import (
 
 class TestSpawn:
     def test_basic_spawn(self, mock_run_make):
-        spawn(branch="pi/a", task="rename", cpus=None, memory=None, image=None, base_url=None, model_id=None)
+        spawn(
+            branch="pi/a",
+            task="rename",
+            cpus=None,
+            memory=None,
+            image=None,
+            base_url=None,
+            model_id=None,
+        )
         mock_run_make["pi"].assert_called_once_with(
             "spawn-pi", {"BRANCH": "pi/a", "TASK": "rename"}
         )
@@ -37,28 +45,56 @@ class TestSpawn:
         assert call_vars["CPUS"] == "4"
 
     def test_spawn_with_memory(self, mock_run_make):
-        spawn(branch="b", task="t", cpus=None, memory="8G", image=None, base_url=None, model_id=None)
+        spawn(
+            branch="b", task="t", cpus=None, memory="8G", image=None, base_url=None, model_id=None
+        )
         call_vars = mock_run_make["pi"].call_args[0][1]
         assert call_vars["MEMORY"] == "8G"
 
     def test_spawn_with_image(self, mock_run_make):
-        spawn(branch="b", task="t", cpus=None, memory=None, image="claude-pi:custom", base_url=None, model_id=None)
+        spawn(
+            branch="b",
+            task="t",
+            cpus=None,
+            memory=None,
+            image="claude-pi:custom",
+            base_url=None,
+            model_id=None,
+        )
         call_vars = mock_run_make["pi"].call_args[0][1]
         assert call_vars["PI_IMAGE"] == "claude-pi:custom"
 
     def test_spawn_with_base_url(self, mock_run_make):
-        spawn(branch="b", task="t", cpus=None, memory=None, image=None, base_url="http://10.0.0.5:9000/v1", model_id=None)
+        spawn(
+            branch="b",
+            task="t",
+            cpus=None,
+            memory=None,
+            image=None,
+            base_url="http://10.0.0.5:9000/v1",
+            model_id=None,
+        )
         call_vars = mock_run_make["pi"].call_args[0][1]
         assert call_vars["PI_BASE_URL"] == "http://10.0.0.5:9000/v1"
 
     def test_spawn_with_model_id(self, mock_run_make):
-        spawn(branch="b", task="t", cpus=None, memory=None, image=None, base_url=None, model_id="mlx-community/gemma-4-26b-a4b-it-4bit")
+        spawn(
+            branch="b",
+            task="t",
+            cpus=None,
+            memory=None,
+            image=None,
+            base_url=None,
+            model_id="mlx-community/gemma-4-26b-a4b-it-4bit",
+        )
         call_vars = mock_run_make["pi"].call_args[0][1]
         assert call_vars["PI_MODEL_ID"] == "mlx-community/gemma-4-26b-a4b-it-4bit"
 
     def test_spawn_does_not_require_token(self, mock_run_make, monkeypatch):
         monkeypatch.delenv("CLAUDE_CONTAINER_OAUTH_TOKEN", raising=False)
-        spawn(branch="b", task="t", cpus=None, memory=None, image=None, base_url=None, model_id=None)
+        spawn(
+            branch="b", task="t", cpus=None, memory=None, image=None, base_url=None, model_id=None
+        )
         mock_run_make["pi"].assert_called_once()
 
 
@@ -84,25 +120,19 @@ class TestListAgents:
 class TestLogs:
     def test_passes_branch(self, mock_run_make):
         logs(branch="pi/x")
-        mock_run_make["pi"].assert_called_once_with(
-            "logs-pi-agent", {"BRANCH": "pi/x"}
-        )
+        mock_run_make["pi"].assert_called_once_with("logs-pi-agent", {"BRANCH": "pi/x"})
 
 
 class TestFollow:
     def test_passes_branch_with_tty(self, mock_run_make):
         follow(branch="pi/x")
-        mock_run_make["pi"].assert_called_once_with(
-            "follow-pi-agent", {"BRANCH": "pi/x"}, tty=True
-        )
+        mock_run_make["pi"].assert_called_once_with("follow-pi-agent", {"BRANCH": "pi/x"}, tty=True)
 
 
 class TestStop:
     def test_passes_branch(self, mock_run_make):
         stop(branch="pi/x")
-        mock_run_make["pi"].assert_called_once_with(
-            "stop-pi-agent", {"BRANCH": "pi/x"}
-        )
+        mock_run_make["pi"].assert_called_once_with("stop-pi-agent", {"BRANCH": "pi/x"})
 
 
 class TestStatus:

@@ -1,3 +1,5 @@
+"""Interactive coordinator container (`run` and `shell` aliases)."""
+
 from typing import Annotated
 
 import typer
@@ -15,14 +17,14 @@ def run(
 ) -> None:
     """Run an interactive coordinator shell (hands off TTY)."""
     check_token()
-    vars: dict[str, str] = {}
+    make_vars: dict[str, str] = {}
     if cpus is not None:
-        vars["CPUS"] = str(cpus)
+        make_vars["CPUS"] = str(cpus)
     if memory:
-        vars["MEMORY"] = memory
+        make_vars["MEMORY"] = memory
     if name:
-        vars["NAME"] = name
-    run_make("run", vars, tty=True)
+        make_vars["NAME"] = name
+    run_make("run", make_vars, tty=True)
 
 
 @app.command()
@@ -33,11 +35,11 @@ def shell(
 ) -> None:
     """Alias for run — open an interactive shell in the coordinator container."""
     check_token()
-    vars: dict[str, str] = {}
+    make_vars: dict[str, str] = {}
     if cpus is not None:
-        vars["CPUS"] = str(cpus)
+        make_vars["CPUS"] = str(cpus)
     if memory:
-        vars["MEMORY"] = memory
+        make_vars["MEMORY"] = memory
     if name:
-        vars["NAME"] = name
-    run_make("shell", vars, tty=True)
+        make_vars["NAME"] = name
+    run_make("shell", make_vars, tty=True)

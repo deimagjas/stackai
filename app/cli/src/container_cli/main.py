@@ -1,3 +1,5 @@
+"""Entry point: registers top-level commands and sub-apps on the `q` Typer app."""
+
 import typer
 
 from container_cli.commands import agents, build, network, pi_agents, run

@@ -32,34 +32,26 @@ def _agents_home() -> Path:
 
 @app.command()
 def build(
-    image: Annotated[
-        str | None, typer.Option("--image", help="PI image tag")
-    ] = None,
+    image: Annotated[str | None, typer.Option("--image", help="PI image tag")] = None,
     dockerfile: Annotated[
         str | None, typer.Option("--dockerfile", help="Path to PI Dockerfile")
     ] = None,
 ) -> None:
     """Build the PI agent image (Ubuntu 26.04 + PI SDK)."""
-    vars: dict[str, str] = {}
+    make_vars: dict[str, str] = {}
     if image:
-        vars["PI_IMAGE"] = image
+        make_vars["PI_IMAGE"] = image
     if dockerfile:
-        vars["PI_DOCKERFILE"] = dockerfile
-    run_make("build-pi", vars)
+        make_vars["PI_DOCKERFILE"] = dockerfile
+    run_make("build-pi", make_vars)
 
 
 @app.command()
 def spawn(
-    branch: Annotated[
-        str, typer.Option("--branch", help="Git branch for the PI agent worktree")
-    ],
-    task: Annotated[
-        str, typer.Option("--task", help="Task description for the PI agent")
-    ],
+    branch: Annotated[str, typer.Option("--branch", help="Git branch for the PI agent worktree")],
+    task: Annotated[str, typer.Option("--task", help="Task description for the PI agent")],
     cpus: Annotated[int | None, typer.Option("--cpus", help="CPU count")] = None,
-    memory: Annotated[
-        str | None, typer.Option("--memory", help="Memory limit (e.g. 3G)")
-    ] = None,
+    memory: Annotated[str | None, typer.Option("--memory", help="Memory limit (e.g. 3G)")] = None,
     image: Annotated[str | None, typer.Option("--image", help="PI image tag")] = None,
     base_url: Annotated[
         str | None,
@@ -82,21 +74,20 @@ def spawn(
         uv run iac server status
     """
     typer.echo(
-        "[pi] reminder: ensure mlx_lm.server is running "
-        "(`uv run iac server status` from /iac)"
+        "[pi] reminder: ensure mlx_lm.server is running (`uv run iac server status` from /iac)"
     )
-    vars: dict[str, str] = {"BRANCH": branch, "TASK": task}
+    make_vars: dict[str, str] = {"BRANCH": branch, "TASK": task}
     if cpus is not None:
-        vars["CPUS"] = str(cpus)
+        make_vars["CPUS"] = str(cpus)
     if memory:
-        vars["MEMORY"] = memory
+        make_vars["MEMORY"] = memory
     if image:
-        vars["PI_IMAGE"] = image
+        make_vars["PI_IMAGE"] = image
     if base_url:
-        vars["PI_BASE_URL"] = base_url
+        make_vars["PI_BASE_URL"] = base_url
     if model_id:
-        vars["PI_MODEL_ID"] = model_id
-    run_make("spawn-pi", vars)
+        make_vars["PI_MODEL_ID"] = model_id
+    run_make("spawn-pi", make_vars)
 
 
 @app.command(name="list")

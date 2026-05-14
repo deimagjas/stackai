@@ -1,3 +1,5 @@
+"""Image build and cleanup commands."""
+
 from typing import Annotated
 
 import typer
@@ -13,12 +15,12 @@ def build(
     dockerfile: Annotated[str | None, typer.Option("--dockerfile", help="Dockerfile path")] = None,
 ) -> None:
     """Build the container image (no cache)."""
-    vars: dict[str, str] = {}
+    make_vars: dict[str, str] = {}
     if image:
-        vars["IMAGE"] = image
+        make_vars["IMAGE"] = image
     if dockerfile:
-        vars["DOCKERFILE"] = dockerfile
-    run_make("build", vars)
+        make_vars["DOCKERFILE"] = dockerfile
+    run_make("build", make_vars)
 
 
 @app.command()
