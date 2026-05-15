@@ -91,6 +91,23 @@ Mutation tests (run via `make mutation-ci-threshold`) act as the safety net that
 
 For skill evals (LLM-graded), see the **Skill evals** section below.
 
+## Python code conventions (`app/cli/`)
+
+The Python CLI follows the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html). Ruff (configured in `app/cli/pyproject.toml`) enforces the mechanical rules: line length 100, import order, pep8-naming, pydocstyle (Google convention), pyupgrade, bugbear, comprehensions (C4), simplify, return, pathlib, unused-args, eradicate, builtins, tidy-imports. Run `make apply-sensors` to auto-fix + verify the full quality pipeline (lint, unit tests, mutation gate).
+
+The rules below cannot be enforced by Ruff and must be applied by hand:
+
+- **Docstring content (Google sections)**: the first line is a one-sentence imperative summary. When parameters, return value, raised exceptions, or yielded items deserve documentation, use `Args:`, `Returns:`, `Raises:`, `Yields:` sections indented 4 spaces under the summary.
+- **`TODO` markers**: always `TODO(@username):` or `TODO(#issue-id):` — never a bare `TODO`. The identifier makes ownership explicit and lets `git grep TODO` find actionable items.
+- **`TYPE_CHECKING` imports**: imports used only inside type annotations go inside `if TYPE_CHECKING:` and are referenced as forward-reference strings. Avoid runtime cost for typing-only dependencies.
+- **`assert` only in tests**: production code under `src/` must not rely on `assert` for control flow — `python -O` strips them. Raise specific exceptions instead (`raise ValueError(...)`, `raise typer.Exit(1)`).
+- **Specific exceptions**: never `except Exception:` bare; catch the concrete types relevant to the operation (`subprocess.CalledProcessError`, `OSError`, `typer.Exit`).
+- **`typer.echo` vs `logging`**: `typer.echo` is for user-facing CLI output only. Any diagnostic or trace information goes through `logger = logging.getLogger(__name__)`.
+- **Naming semantics**: variable names must not shadow built-ins (`vars`, `id`, `type`, `list`, `dict`, `input`). Prefer descriptive names: `make_vars`, `env_overrides`, `image_tag`. Function names are imperative verbs in `snake_case`.
+- **No mutable default arguments**: never `def f(x: list = []):`. Use `None` and materialise inside (`x = x if x is not None else []`).
+- **Absolute imports**: inside `container_cli/` always import with the full package path (`from container_cli.utils import run_make`), never relative.
+- **Function size**: revisit any function past ~25 lines and consider splitting; single responsibility per function.
+
 ## Architecture
 
 - **`config/`** — Container infrastructure: `Dockerfile.wolfi` (production, multi-stage: Rust tool compilation → runtime with Claude CLI, Node, Python), `entrypoint.sh` (credential injection + worktree creation + su-exec privilege drop), `Makefile` (orchestration)

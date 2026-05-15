@@ -16,11 +16,13 @@ def fake_git_root(tmp_path: Path):
 @pytest.fixture()
 def mock_run_make():
     """Patch run_make across all command modules."""
-    with patch("container_cli.commands.agents.run_make") as m_agents, \
-         patch("container_cli.commands.build.run_make") as m_build, \
-         patch("container_cli.commands.run.run_make") as m_run, \
-         patch("container_cli.commands.network.run_make") as m_network, \
-         patch("container_cli.commands.pi_agents.run_make") as m_pi:
+    with (
+        patch("container_cli.commands.agents.run_make") as m_agents,
+        patch("container_cli.commands.build.run_make") as m_build,
+        patch("container_cli.commands.run.run_make") as m_run,
+        patch("container_cli.commands.network.run_make") as m_network,
+        patch("container_cli.commands.pi_agents.run_make") as m_pi,
+    ):
         yield {
             "agents": m_agents,
             "build": m_build,
@@ -33,8 +35,10 @@ def mock_run_make():
 @pytest.fixture()
 def mock_check_token():
     """Patch check_token across command modules that use it."""
-    with patch("container_cli.commands.agents.check_token") as m_agents, \
-         patch("container_cli.commands.run.check_token") as m_run:
+    with (
+        patch("container_cli.commands.agents.check_token") as m_agents,
+        patch("container_cli.commands.run.check_token") as m_run,
+    ):
         yield {"agents": m_agents, "run": m_run}
 
 

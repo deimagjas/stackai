@@ -1,3 +1,5 @@
+"""Agent lifecycle commands (spawn, list, logs, follow, stop, status, summary)."""
+
 import json
 import os
 from pathlib import Path
@@ -28,14 +30,14 @@ def spawn(
 ) -> None:
     """Spawn a detached headless agent container."""
     check_token()
-    vars: dict[str, str] = {"BRANCH": branch, "TASK": task}
+    make_vars: dict[str, str] = {"BRANCH": branch, "TASK": task}
     if cpus is not None:
-        vars["CPUS"] = str(cpus)
+        make_vars["CPUS"] = str(cpus)
     if memory:
-        vars["MEMORY"] = memory
+        make_vars["MEMORY"] = memory
     if image:
-        vars["IMAGE"] = image
-    run_make("spawn", vars)
+        make_vars["IMAGE"] = image
+    run_make("spawn", make_vars)
 
 
 @app.command(name="list")

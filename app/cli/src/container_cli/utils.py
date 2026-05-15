@@ -1,3 +1,5 @@
+"""Shared helpers: git root resolution, Makefile runner, and token validation."""
+
 import os
 import subprocess
 from pathlib import Path
@@ -6,6 +8,15 @@ import typer
 
 
 def find_git_root() -> Path:
+    """Return the absolute path of the repository root.
+
+    Returns:
+        Path to the top-level directory reported by `git rev-parse --show-toplevel`.
+
+    Raises:
+        subprocess.CalledProcessError: If the current working directory is not inside
+            a git repository.
+    """
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
@@ -16,10 +27,20 @@ def find_git_root() -> Path:
 
 
 def makefile_dir() -> Path:
+    """Return the directory that contains the orchestration Makefile.
+
+    Returns:
+        Path to `config/` under the git root.
+    """
     return find_git_root() / "config"
 
 
 def check_token() -> None:
+    """Verify that the Claude container OAuth token is exported.
+
+    Raises:
+        typer.Exit: With code 1 if `CLAUDE_CONTAINER_OAUTH_TOKEN` is unset or empty.
+    """
     token = os.environ.get("CLAUDE_CONTAINER_OAUTH_TOKEN")
     if not token:
         typer.echo(
@@ -30,6 +51,17 @@ def check_token() -> None:
 
 
 def run_make(target: str, extra_vars: dict[str, str] | None = None, *, tty: bool = False) -> None:
+    """Invoke a Makefile target inside the project's `config/` directory.
+
+    Args:
+        target: The Make target name to execute.
+        extra_vars: Optional mapping of variables passed as `KEY=VALUE` to make.
+        tty: If True, replace the current process with `make` so it inherits the TTY
+            (used by interactive commands like `run` and `follow`).
+
+    Raises:
+        typer.Exit: When the subprocess returns a non-zero exit code (non-TTY path).
+    """
     vars_list = [f"{k}={v}" for k, v in (extra_vars or {}).items()]
     cmd = ["make", "-C", str(makefile_dir()), target, *vars_list]
 

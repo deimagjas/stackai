@@ -44,3 +44,16 @@ eval-skills:
 
 # Pre-PR quality gate
 local-qa: acceptance-test eval-skills
+
+# Quality sensors: lint + format + unit tests + mutation gate (no acceptance)
+.PHONY: lint unit-test apply-sensors
+
+lint:
+	uv run ruff check --fix .
+	uv run ruff format .
+
+unit-test:
+	uv run pytest tests --ignore=tests/acceptance -v
+
+apply-sensors: lint unit-test mutation-ci-threshold
+	@echo "[apply-sensors] OK — lint clean, unit tests green, mutation >= 70%"

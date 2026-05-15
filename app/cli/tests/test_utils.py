@@ -9,8 +9,8 @@ import typer
 
 from container_cli.utils import check_token, find_git_root, makefile_dir, run_make
 
-
 # ---------- find_git_root ----------
+
 
 class TestFindGitRoot:
     def test_returns_path_from_git(self):
@@ -31,15 +31,18 @@ class TestFindGitRoot:
             assert find_git_root() == Path("/tmp/repo")
 
     def test_raises_on_git_failure(self):
-        with patch(
-            "container_cli.utils.subprocess.run",
-            side_effect=subprocess.CalledProcessError(128, "git"),
+        with (
+            patch(
+                "container_cli.utils.subprocess.run",
+                side_effect=subprocess.CalledProcessError(128, "git"),
+            ),
+            pytest.raises(subprocess.CalledProcessError),
         ):
-            with pytest.raises(subprocess.CalledProcessError):
-                find_git_root()
+            find_git_root()
 
 
 # ---------- makefile_dir ----------
+
 
 class TestMakefileDir:
     def test_returns_config_subdir(self, fake_git_root: Path):
@@ -47,6 +50,7 @@ class TestMakefileDir:
 
 
 # ---------- check_token ----------
+
 
 class TestCheckToken:
     def test_passes_when_token_set(self, monkeypatch: pytest.MonkeyPatch):
@@ -74,18 +78,21 @@ class TestCheckToken:
 
 # ---------- run_make ----------
 
+
 class TestRunMake:
     def test_basic_target(self, fake_git_root: Path):
-        with patch("container_cli.utils.os.execvp"), \
-             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m:
+        with (
+            patch("container_cli.utils.os.execvp"),
+            patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m,
+        ):
             run_make("build")
-            m.assert_called_once_with(
-                ["make", "-C", str(fake_git_root / "config"), "build"]
-            )
+            m.assert_called_once_with(["make", "-C", str(fake_git_root / "config"), "build"])
 
     def test_with_extra_vars(self, fake_git_root: Path):
-        with patch("container_cli.utils.os.execvp"), \
-             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m:
+        with (
+            patch("container_cli.utils.os.execvp"),
+            patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m,
+        ):
             run_make("spawn", {"BRANCH": "feat/x", "TASK": "do stuff"})
             cmd = m.call_args[0][0]
             assert cmd[:4] == ["make", "-C", str(fake_git_root / "config"), "spawn"]
@@ -93,8 +100,10 @@ class TestRunMake:
             assert "TASK=do stuff" in cmd
 
     def test_raises_exit_on_failure(self, fake_git_root: Path):
-        with patch("container_cli.utils.os.execvp"), \
-             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=2)):
+        with (
+            patch("container_cli.utils.os.execvp"),
+            patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=2)),
+        ):
             with pytest.raises(typer.Exit) as exc_info:
                 run_make("build")
             assert exc_info.value.exit_code == 2
@@ -114,8 +123,12 @@ class TestRunMake:
             assert "NAME=test" in cmd
 
     def test_default_tty_uses_subprocess(self, fake_git_root: Path):
-        with patch("container_cli.utils.os.execvp") as m_exec, \
-             patch("container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)) as m_sub:
+        with (
+            patch("container_cli.utils.os.execvp") as m_exec,
+            patch(
+                "container_cli.utils.subprocess.run", return_value=MagicMock(returncode=0)
+            ) as m_sub,
+        ):
             run_make("build")
             m_sub.assert_called_once()
             m_exec.assert_not_called()

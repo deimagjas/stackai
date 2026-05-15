@@ -1,11 +1,20 @@
 from __future__ import annotations
+
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import typer
 
-from container_cli.commands.agents import _agents_home, follow, list_agents, logs, spawn, status, stop
+from container_cli.commands.agents import (
+    _agents_home,
+    follow,
+    list_agents,
+    logs,
+    spawn,
+    status,
+    stop,
+)
 
 
 class TestSpawn:
@@ -38,8 +47,11 @@ class TestSpawn:
         spawn(branch="b", task="t", cpus=2, memory="4G", image="img")
         call_vars = mock_run_make["agents"].call_args[0][1]
         assert call_vars == {
-            "BRANCH": "b", "TASK": "t",
-            "CPUS": "2", "MEMORY": "4G", "IMAGE": "img",
+            "BRANCH": "b",
+            "TASK": "t",
+            "CPUS": "2",
+            "MEMORY": "4G",
+            "IMAGE": "img",
         }
 
 
@@ -85,9 +97,11 @@ class TestStatus:
 
     def test_agents_home_fallback(self, monkeypatch):
         monkeypatch.delenv("AGENTS_HOME", raising=False)
-        with patch("container_cli.commands.agents.find_git_root", return_value=Path("/fake/repo")):
-            with pytest.raises(typer.Exit) as exc_info:
-                status(branch="nonexistent-branch")
+        with (
+            patch("container_cli.commands.agents.find_git_root", return_value=Path("/fake/repo")),
+            pytest.raises(typer.Exit) as exc_info,
+        ):
+            status(branch="nonexistent-branch")
         assert exc_info.value.exit_code == 1
 
 
@@ -98,6 +112,8 @@ class TestAgentsHome:
 
     def test_fallback_path_name(self, monkeypatch):
         monkeypatch.delenv("AGENTS_HOME", raising=False)
-        with patch("container_cli.commands.agents.find_git_root", return_value=Path("/home/user/repo")):
+        with patch(
+            "container_cli.commands.agents.find_git_root", return_value=Path("/home/user/repo")
+        ):
             result = _agents_home()
         assert result == Path("/home/user/.worktrees")

@@ -36,13 +36,15 @@ def invocation_context(
 
     monkeypatch.delenv("AGENTS_HOME", raising=False)
 
-    with patch("container_cli.commands.agents.run_make") as m_agents, \
-         patch("container_cli.commands.build.run_make") as m_build, \
-         patch("container_cli.commands.run.run_make") as m_run, \
-         patch("container_cli.commands.network.run_make") as m_network, \
-         patch("container_cli.commands.pi_agents.run_make") as m_pi, \
-         patch("container_cli.commands.agents.find_git_root", return_value=repo), \
-         patch("container_cli.commands.pi_agents.find_git_root", return_value=repo):
+    with (
+        patch("container_cli.commands.agents.run_make") as m_agents,
+        patch("container_cli.commands.build.run_make") as m_build,
+        patch("container_cli.commands.run.run_make") as m_run,
+        patch("container_cli.commands.network.run_make") as m_network,
+        patch("container_cli.commands.pi_agents.run_make") as m_pi,
+        patch("container_cli.commands.agents.find_git_root", return_value=repo),
+        patch("container_cli.commands.pi_agents.find_git_root", return_value=repo),
+    ):
         ctx = InvocationContext(
             runner=CliRunner(),
             mocks={

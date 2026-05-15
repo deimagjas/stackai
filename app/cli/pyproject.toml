@@ -34,3 +34,49 @@ paths_to_mutate = ["src/container_cli/"]
 only_covered_tests = false
 # CI gate threshold (enforced by `make mutation-ci-threshold`, not by mutmut itself)
 # threshold = 70
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+extend-exclude = ["mutants"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",
+    "F",
+    "I",
+    "N",
+    "D",
+    "UP",
+    "B",
+    "C4",
+    "SIM",
+    "RET",
+    "PTH",
+    "ARG",
+    "ERA",
+    "A",
+    "TID",
+]
+ignore = [
+    "D203",
+    "D213",
+    "D406",
+    "D407",
+    "D413",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "ARG001", "ARG002", "ARG005", "E501"]
+"src/container_cli/__init__.py" = ["D104"]
+"src/container_cli/commands/__init__.py" = ["D104"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true

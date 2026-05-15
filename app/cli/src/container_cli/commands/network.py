@@ -1,3 +1,5 @@
+"""Bridge network management commands."""
+
 from typing import Annotated
 
 import typer
@@ -13,9 +15,9 @@ def network(
     network_name: Annotated[str | None, typer.Option("--network-name", help="Network name")] = None,
 ) -> None:
     """Create the isolated bridge network."""
-    vars: dict[str, str] = {}
+    make_vars: dict[str, str] = {}
     if subnet:
-        vars["SUBNET"] = subnet
+        make_vars["SUBNET"] = subnet
     if network_name:
-        vars["NETWORK"] = network_name
-    run_make("network", vars)
+        make_vars["NETWORK"] = network_name
+    run_make("network", make_vars)
