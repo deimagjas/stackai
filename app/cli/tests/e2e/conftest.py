@@ -1,0 +1,171 @@
+"""Shared fixtures and collection gating for the opt-in end-to-end tests.
+
+These tests spawn real Apple Container CLI containers, so they are:
+
+* **local-only** — GitHub Actions has no Apple Container CLI;
+* **opt-in** — collected only when ``STACKAI_E2E=1`` is exported;
+* **slow and billable** — the Claude round-trip spends real Claude credits.
+
+Run them with ``make e2e-test`` (from ``app/cli/``), which exports the gate
+variable. Without it, pytest never imports the test modules, so the default
+``uv run pytest`` and the mutmut suite ignore them entirely.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Iterator
+from pathlib import Path
+
+import pytest
+
+# Collection gate: without STACKAI_E2E=1, pytest skips collecting these modules.
+collect_ignore_glob = [] if os.environ.get("STACKAI_E2E") == "1" else ["test_*.py"]
+
+# Terminal phases written by config/entrypoint*.sh into .agent/status.json.
+_TERMINAL_PHASES = frozenset({"completed", "errored"})
+
+
+def _run_q(*args: str, timeout: float = 600) -> subprocess.CompletedProcess[str]:
+    """Invoke the real q CLI in a subprocess, inheriting the current environment."""
+    return subprocess.run(
+        [sys.executable, "-m", "container_cli.main", *args],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _image_present(image: str) -> bool | None:
+    """Report whether a container image exists locally.
+
+    Returns:
+        True or False when the Apple Container CLI answers, None when the
+        command is unavailable so the caller should not skip on that basis.
+    """
+    result = subprocess.run(
+        ["container", "image", "list"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return image.split(":")[0] in result.stdout
+
+
+@pytest.fixture()
+def run_q() -> Callable[..., subprocess.CompletedProcess[str]]:
+    """Return a helper that runs the q CLI and captures its output."""
+    return _run_q
+
+
+@pytest.fixture()
+def require_container_cli() -> None:
+    """Skip the test unless the Apple `container` CLI is on PATH."""
+    if shutil.which("container") is None:
+        pytest.skip("Apple Container CLI ('container') not found — E2E needs macOS 26+ ARM64")
+
+
+@pytest.fixture()
+def require_claude_token() -> None:
+    """Skip the test unless a Claude container OAuth token is exported."""
+    if not os.environ.get("CLAUDE_CONTAINER_OAUTH_TOKEN"):
+        pytest.skip("CLAUDE_CONTAINER_OAUTH_TOKEN not set — required to spawn a Claude agent")
+
+
+@pytest.fixture()
+def require_claude_image() -> None:
+    """Skip the test unless the claude-agent:wolfi image is built."""
+    if _image_present("claude-agent:wolfi") is False:
+        pytest.skip("image claude-agent:wolfi not built — run `q build` first")
+
+
+@pytest.fixture()
+def require_pi_image() -> None:
+    """Skip the test unless the claude-pi:ubuntu image is built."""
+    if _image_present("claude-pi:ubuntu") is False:
+        pytest.skip("image claude-pi:ubuntu not built — run `q pi build` first")
+
+
+@pytest.fixture()
+def require_mlx_server() -> None:
+    """Skip the test unless the local mlx_lm.server is reachable on the host."""
+    url = os.environ.get("STACKAI_E2E_MLX_URL", "http://localhost:8080/v1/models")
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            if resp.status != 200:
+                pytest.skip(f"mlx_lm.server at {url} returned HTTP {resp.status}")
+    except (urllib.error.URLError, OSError) as exc:
+        pytest.skip(f"mlx_lm.server unreachable at {url} ({exc}) — run `uv run iac server start`")
+
+
+@pytest.fixture()
+def isolated_agents_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point AGENTS_HOME at a throwaway directory for the duration of the test."""
+    home = tmp_path / "worktrees"
+    home.mkdir()
+    monkeypatch.setenv("AGENTS_HOME", str(home))
+    return home
+
+
+@pytest.fixture()
+def unique_branch() -> str:
+    """A collision-free, flat branch name (no slashes — see docs/agents/cli.md)."""
+    return f"e2e-{int(time.time())}-{os.getpid()}"
+
+
+@pytest.fixture()
+def wait_for_terminal_phase() -> Callable[..., dict]:
+    """Return a poller that blocks until an agent writes a terminal status.json."""
+
+    def _wait(agents_home: Path, branch: str, timeout: float = 600) -> dict:
+        status_file = agents_home / branch / ".agent" / "status.json"
+        deadline = time.monotonic() + timeout
+        last_phase = "<no status.json>"
+        while time.monotonic() < deadline:
+            if status_file.exists():
+                try:
+                    data = json.loads(status_file.read_text())
+                except json.JSONDecodeError:
+                    data = {}
+                last_phase = data.get("phase", "<unparsed>")
+                if last_phase in _TERMINAL_PHASES:
+                    return data
+            time.sleep(5)
+        raise AssertionError(
+            f"agent '{branch}' did not reach a terminal phase within {timeout}s "
+            f"(last phase seen: {last_phase})"
+        )
+
+    return _wait
+
+
+@pytest.fixture()
+def agent_cleanup(isolated_agents_home: Path) -> Iterator[Callable[..., None]]:
+    """Register (branch, kind) pairs to be stopped and pruned after the test."""
+    registered: list[tuple[str, str]] = []
+
+    def _register(branch: str, kind: str = "claude") -> None:
+        registered.append((branch, kind))
+
+    yield _register
+
+    for branch, kind in registered:
+        stop = ["pi", "stop"] if kind == "pi" else ["agents", "stop"]
+        _run_q(*stop, "--branch", branch, timeout=120)
+        worktree = isolated_agents_home / branch
+        for cmd in (
+            ["git", "worktree", "remove", "--force", str(worktree)],
+            ["git", "worktree", "prune"],
+            ["git", "branch", "-D", branch],
+        ):
+            subprocess.run(cmd, capture_output=True, text=True, check=False)

@@ -42,6 +42,13 @@ test-all:
 eval-skills:
 	claude -p "/skill-creator:skill-creator run evals for the spawn-agent skill at ~/.claude/skills/spawn-agent/"
 
+# End-to-end container tests — opt-in, local-only (needs Apple Container CLI).
+# Spawns real agent containers; the Claude round-trip spends Claude credits.
+# Excluded from CI and from `local-qa` by design.
+.PHONY: e2e-test
+e2e-test:
+	STACKAI_E2E=1 uv run pytest tests/e2e -v -m e2e
+
 # Pre-PR quality gate
 local-qa: acceptance-test eval-skills
 
