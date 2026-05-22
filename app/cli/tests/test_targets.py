@@ -5,9 +5,23 @@ from pathlib import Path
 
 from container_cli.targets import Target
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_MAKEFILE = _REPO_ROOT / "config" / "Makefile"
 _TARGET_DEF = re.compile(r"^([a-zA-Z0-9_-]+):", re.MULTILINE)
+
+
+def _find_makefile() -> Path:
+    """Locate config/Makefile by walking up from this test file.
+
+    Walking up (rather than a fixed parent index) keeps the lookup correct when
+    the test runs from the mutmut copy under ``mutants/``.
+    """
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "config" / "Makefile"
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError("config/Makefile not found in any parent directory")
+
+
+_MAKEFILE = _find_makefile()
 
 
 class TestTargetValues:
