@@ -235,15 +235,21 @@ app/cli/
 ├── pyproject.toml                    ← uv project, entry point: q
 └── src/
     └── container_cli/
-        ├── main.py                   ← registers all commands + agents sub-app
-        ├── utils.py                  ← find_git_root, makefile_dir, check_token, run_make
+        ├── main.py                   ← registers all commands + agents/pi sub-apps
+        ├── targets.py                ← Target enum: the config/Makefile target contract
+        ├── utils.py                  ← git/worktree paths, run_make, check_token, print_agent_status
         └── commands/
             ├── build.py              ← build, clean, clean-network, clean-all
             ├── network.py            ← network
             ├── run.py                ← run, shell
-            ├── agents.py             ← spawn, list, logs, follow, stop
+            ├── agents.py             ← spawn, list, logs, follow, stop, status, summary
             └── pi_agents.py          ← pi build/spawn/list/logs/follow/stop/status
 ```
+
+> Target names are not free strings: every Makefile target the CLI invokes is a
+> member of the `Target` enum in `targets.py`, and `tests/test_targets.py`
+> verifies each one against `config/Makefile`. Real-container round-trip tests
+> live in `tests/e2e/` — see [e2e-tests.md](./e2e-tests.md).
 
 ---
 

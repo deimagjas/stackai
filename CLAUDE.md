@@ -53,6 +53,9 @@ uv run pytest -k test_spawn         # single test by name
 # Acceptance tests only (Gherkin/BDD, local — no real containers)
 make acceptance-test
 
+# End-to-end tests (real containers, opt-in, local-only — see docs/agents/e2e-tests.md)
+make e2e-test
+
 # Mutation testing gate (≥ 70% kill rate)
 make mutation-ci-threshold
 
