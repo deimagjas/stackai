@@ -17,6 +17,7 @@ from typing import Annotated
 
 import typer
 
+from container_cli.targets import Target
 from container_cli.utils import find_git_root, run_make
 
 app = typer.Typer(help="PI agent lifecycle (local mlx_lm.server backend)")
@@ -43,7 +44,7 @@ def build(
         make_vars["PI_IMAGE"] = image
     if dockerfile:
         make_vars["PI_DOCKERFILE"] = dockerfile
-    run_make("build-pi", make_vars)
+    run_make(Target.BUILD_PI, make_vars)
 
 
 @app.command()
@@ -87,13 +88,13 @@ def spawn(
         make_vars["PI_BASE_URL"] = base_url
     if model_id:
         make_vars["PI_MODEL_ID"] = model_id
-    run_make("spawn-pi", make_vars)
+    run_make(Target.SPAWN_PI, make_vars)
 
 
 @app.command(name="list")
 def list_agents() -> None:
     """List active PI agent containers and PI worktrees."""
-    run_make("list-pi-agents")
+    run_make(Target.LIST_PI_AGENTS)
 
 
 @app.command()
@@ -101,7 +102,7 @@ def logs(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Show logs for a PI agent (live container or persisted log)."""
-    run_make("logs-pi-agent", {"BRANCH": branch})
+    run_make(Target.LOGS_PI_AGENT, {"BRANCH": branch})
 
 
 @app.command()
@@ -109,7 +110,7 @@ def follow(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Follow live streaming logs for a PI agent."""
-    run_make("follow-pi-agent", {"BRANCH": branch}, tty=True)
+    run_make(Target.FOLLOW_PI_AGENT, {"BRANCH": branch}, tty=True)
 
 
 @app.command()
@@ -117,7 +118,7 @@ def stop(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Stop a PI agent container."""
-    run_make("stop-pi-agent", {"BRANCH": branch})
+    run_make(Target.STOP_PI_AGENT, {"BRANCH": branch})
 
 
 @app.command()

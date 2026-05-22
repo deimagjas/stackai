@@ -4,6 +4,7 @@ from typing import Annotated
 
 import typer
 
+from container_cli.targets import Target
 from container_cli.utils import check_token, run_make
 
 app = typer.Typer(help="Run coordinator container")
@@ -24,7 +25,7 @@ def run(
         make_vars["MEMORY"] = memory
     if name:
         make_vars["NAME"] = name
-    run_make("run", make_vars, tty=True)
+    run_make(Target.RUN, make_vars, tty=True)
 
 
 @app.command()
@@ -42,4 +43,4 @@ def shell(
         make_vars["MEMORY"] = memory
     if name:
         make_vars["NAME"] = name
-    run_make("shell", make_vars, tty=True)
+    run_make(Target.SHELL, make_vars, tty=True)

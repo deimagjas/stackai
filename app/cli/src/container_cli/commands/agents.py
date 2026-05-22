@@ -7,6 +7,7 @@ from typing import Annotated
 
 import typer
 
+from container_cli.targets import Target
 from container_cli.utils import check_token, find_git_root, run_make
 
 app = typer.Typer(help="Agent lifecycle commands")
@@ -37,13 +38,13 @@ def spawn(
         make_vars["MEMORY"] = memory
     if image:
         make_vars["IMAGE"] = image
-    run_make("spawn", make_vars)
+    run_make(Target.SPAWN, make_vars)
 
 
 @app.command(name="list")
 def list_agents() -> None:
     """List active agent containers and worktrees."""
-    run_make("list-agents")
+    run_make(Target.LIST_AGENTS)
 
 
 @app.command()
@@ -51,7 +52,7 @@ def logs(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Show logs for a branch agent."""
-    run_make("logs-agent", {"BRANCH": branch})
+    run_make(Target.LOGS_AGENT, {"BRANCH": branch})
 
 
 @app.command()
@@ -59,7 +60,7 @@ def follow(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Follow live streaming logs for a branch agent."""
-    run_make("follow-agent", {"BRANCH": branch}, tty=True)
+    run_make(Target.FOLLOW_AGENT, {"BRANCH": branch}, tty=True)
 
 
 @app.command()
@@ -67,7 +68,7 @@ def stop(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Stop a branch agent container."""
-    run_make("stop-agent", {"BRANCH": branch})
+    run_make(Target.STOP_AGENT, {"BRANCH": branch})
 
 
 @app.command()
@@ -90,4 +91,4 @@ def summary(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Show structured lifecycle events for a branch agent."""
-    run_make("summary-agent", {"BRANCH": branch})
+    run_make(Target.SUMMARY_AGENT, {"BRANCH": branch})

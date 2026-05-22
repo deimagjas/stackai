@@ -6,6 +6,8 @@ from pathlib import Path
 
 import typer
 
+from container_cli.targets import Target
+
 
 def find_git_root() -> Path:
     """Return the absolute path of the repository root.
@@ -50,11 +52,14 @@ def check_token() -> None:
         raise typer.Exit(1)
 
 
-def run_make(target: str, extra_vars: dict[str, str] | None = None, *, tty: bool = False) -> None:
+def run_make(
+    target: Target, extra_vars: dict[str, str] | None = None, *, tty: bool = False
+) -> None:
     """Invoke a Makefile target inside the project's `config/` directory.
 
     Args:
-        target: The Make target name to execute.
+        target: The Makefile target to execute (a `Target` member, which is a
+            `StrEnum` and therefore usable directly as the make argument).
         extra_vars: Optional mapping of variables passed as `KEY=VALUE` to make.
         tty: If True, replace the current process with `make` so it inherits the TTY
             (used by interactive commands like `run` and `follow`).
