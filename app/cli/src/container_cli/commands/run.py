@@ -1,4 +1,7 @@
-"""Interactive coordinator container (`run` and `shell` aliases)."""
+"""Interactive coordinator container (`run` and `shell` aliases).
+
+Registered as top-level commands by `container_cli.main`.
+"""
 
 from typing import Annotated
 
@@ -6,8 +9,6 @@ import typer
 
 from container_cli.targets import Target
 from container_cli.utils import check_token, run_make
-
-app = typer.Typer(help="Run coordinator container")
 
 
 def _coordinator(target: Target, cpus: int | None, memory: str | None, name: str | None) -> None:
@@ -23,7 +24,6 @@ def _coordinator(target: Target, cpus: int | None, memory: str | None, name: str
     run_make(target, make_vars, tty=True)
 
 
-@app.command()
 def run(
     cpus: Annotated[int | None, typer.Option("--cpus", help="CPU count")] = None,
     memory: Annotated[str | None, typer.Option("--memory", help="Memory limit (e.g. 12G)")] = None,
@@ -33,7 +33,6 @@ def run(
     _coordinator(Target.RUN, cpus, memory, name)
 
 
-@app.command()
 def shell(
     cpus: Annotated[int | None, typer.Option("--cpus", help="CPU count")] = None,
     memory: Annotated[str | None, typer.Option("--memory", help="Memory limit (e.g. 12G)")] = None,

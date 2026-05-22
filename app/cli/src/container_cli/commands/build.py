@@ -1,4 +1,7 @@
-"""Image build and cleanup commands."""
+"""Image build and cleanup commands.
+
+These functions are registered as top-level commands by `container_cli.main`.
+"""
 
 from typing import Annotated
 
@@ -7,10 +10,7 @@ import typer
 from container_cli.targets import Target
 from container_cli.utils import run_make
 
-app = typer.Typer(help="Image build commands")
 
-
-@app.command()
 def build(
     image: Annotated[str | None, typer.Option("--image", help="Image tag")] = None,
     dockerfile: Annotated[str | None, typer.Option("--dockerfile", help="Dockerfile path")] = None,
@@ -24,19 +24,16 @@ def build(
     run_make(Target.BUILD, make_vars)
 
 
-@app.command()
 def clean() -> None:
     """Remove the container image."""
     run_make(Target.CLEAN)
 
 
-@app.command(name="clean-network")
 def clean_network() -> None:
     """Remove the bridge network."""
     run_make(Target.CLEAN_NETWORK)
 
 
-@app.command(name="clean-all")
 def clean_all() -> None:
     """Remove image and network."""
     run_make(Target.CLEAN_ALL)
