@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modularity Review</title>
+<style>
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+    --max-width: 820px;
+  }
+
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eef1f5;
+    --text: #1a1a1a;
+    --text-secondary: #4a5568;
+    --text-muted: #718096;
+    --border: #e2e8f0;
+    --accent: #2b6cb0;
+    --accent-light: #ebf4ff;
+    --severity-critical: #c53030;
+    --severity-critical-bg: #fff5f5;
+    --severity-significant: #c05621;
+    --severity-significant-bg: #fffaf0;
+    --severity-minor: #2b6cb0;
+    --severity-minor-bg: #ebf8ff;
+    --table-stripe: #f7fafc;
+    --link: #2b6cb0;
+    --link-hover: #1a4971;
+    --shadow: rgba(0, 0, 0, 0.06);
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #1a1a1a;
+    --bg-secondary: #242424;
+    --bg-tertiary: #2e2e2e;
+    --text: #e2e2e2;
+    --text-secondary: #a0a0a0;
+    --text-muted: #717171;
+    --border: #333333;
+    --accent: #b0b0b0;
+    --accent-light: #2a2a2a;
+    --severity-critical: #fc8181;
+    --severity-critical-bg: #2d1b1b;
+    --severity-significant: #f6ad55;
+    --severity-significant-bg: #2d2415;
+    --severity-minor: #a0a0a0;
+    --severity-minor-bg: #282828;
+    --table-stripe: #222222;
+    --link: #e0c97f;
+    --link-hover: #f0dca0;
+    --shadow: rgba(0, 0, 0, 0.2);
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    margin: 0;
+    padding: 2rem 1.5rem;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+
+  .container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+
+  /* Theme toggle */
+  .theme-toggle {
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: var(--text);
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    z-index: 100;
+  }
+
+  .theme-toggle:hover {
+    background: var(--bg-tertiary);
+  }
+
+  /* Typography */
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem 0;
+    color: var(--text);
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 2.5rem 0 1rem 0;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.8rem 0 0.6rem 0;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0 0 1rem 0;
+    color: var(--text-secondary);
+  }
+
+  a {
+    color: var(--link);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s ease;
+  }
+
+  a:hover {
+    color: var(--link-hover);
+    border-bottom-color: var(--link-hover);
+  }
+
+  /* Metadata */
+  .meta {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .meta strong {
+    color: var(--text-secondary);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.9rem;
+  }
+
+  th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  td {
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+
+  tr:nth-child(even) td {
+    background: var(--table-stripe);
+  }
+
+  /* Severity badges */
+  .severity {
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.15rem 0.6rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .severity-critical {
+    color: var(--severity-critical);
+    background: var(--severity-critical-bg);
+  }
+
+  .severity-significant {
+    color: var(--severity-significant);
+    background: var(--severity-significant-bg);
+  }
+
+  .severity-minor {
+    color: var(--severity-minor);
+    background: var(--severity-minor-bg);
+  }
+
+  /* Issue cards */
+  .issue {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+
+  .issue h2 {
+    margin-top: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .issue h3 {
+    font-size: 1rem;
+  }
+
+  .issue-meta {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  /* Lists */
+  ul, ol {
+    padding-left: 1.5rem;
+    color: var(--text-secondary);
+  }
+
+  li {
+    margin-bottom: 0.35rem;
+  }
+
+  /* Code */
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--bg-tertiary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  /* Horizontal rule */
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 3rem 0 1.5rem 0;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .footer a {
+    color: var(--text-muted);
+    border-bottom-color: var(--border);
+  }
+
+  .footer a:hover {
+    color: var(--link);
+  }
+
+  /* Print */
+  @media print {
+    .theme-toggle { display: none; }
+    body { padding: 0; }
+    .issue { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+  <span id="theme-icon"></span>
+</button>
+
+<div class="container">
+  <h1>Modularity Review</h1>
+<p class="meta"><strong>Scope</strong>: The <code>q</code> Python CLI (<code>app/cli/</code>) and its integration boundary with <code>config/Makefile</code><br>
+<strong>Date</strong>: 2026-05-21</p>
+
+<h2>Executive Summary</h2>
+<p>stackai orchestrates parallel Claude Code agents in sandboxed Apple Containers; the <code>q</code> CLI is a typed Typer front end that wraps the <code>config/Makefile</code> orchestration targets. In the small the CLI is healthy &mdash; <code>utils.run_make</code> cleanly encapsulates the <em>mechanism</em> of invoking <code>make</code>, and every module is short and single-purpose. The <a href="https://coupling.dev/posts/core-concepts/modularity/">modularity</a> weakness is concentrated at one boundary: the CLI's knowledge of <em>which</em> Makefile targets exist and <em>what variables they accept</em> is <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">functionally coupled</a> and <strong>implicit</strong> &mdash; encoded as bare string literals scattered across five command modules with no contract to make the dependency explicit or fail loudly. Because the Makefile is the <a href="https://coupling.dev/posts/dimensions-of-coupling/volatility/">core subdomain</a> of the product and evolves continuously, this is the most important finding: the CLI silently breaks at runtime when a target is renamed. A second, self-inflicted issue compounds it &mdash; the <code>status</code> command reaches <em>past</em> the Makefile into the container's private <code>.agent/status.json</code> file, reproducing an existing <code>status-agent</code> target with <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">intrusive coupling</a>.</p>
+<p>Overall status: <strong>needs attention</strong>. There is no critical distributed-monolith failure, but two unbalanced-and-volatile integrations will cause avoidable pain as the Makefile evolves, and two smaller cohesion defects add cognitive friction.</p>
+
+<h2>Coupling Overview</h2>
+<table>
+<thead>
+<tr>
+<th>Integration</th>
+<th><a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">Strength</a></th>
+<th><a href="https://coupling.dev/posts/dimensions-of-coupling/distance/">Distance</a></th>
+<th><a href="https://coupling.dev/posts/dimensions-of-coupling/volatility/">Volatility</a></th>
+<th><a href="https://coupling.dev/posts/core-concepts/balance/">Balanced?</a></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>commands/*</code> &rarr; <code>config/Makefile</code> (target &amp; variable names)</td>
+<td><a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">Functional</a>, implicit</td>
+<td>High &mdash; separate language, separate directory, subprocess</td>
+<td>High &mdash; orchestration is the core subdomain, targets evolve</td>
+<td><strong>No</strong> &mdash; unbalanced &amp; volatile</td>
+</tr>
+<tr>
+<td><code>agents.status</code> / <code>pi.status</code> &rarr; container <code>.agent/status.json</code></td>
+<td><a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">Intrusive</a></td>
+<td>High &mdash; bash entrypoint, runs inside the container</td>
+<td>Medium&ndash;High &mdash; monitoring actively developed</td>
+<td><strong>No</strong> &mdash; unbalanced &amp; volatile</td>
+</tr>
+<tr>
+<td><code>agents._agents_home</code> &equiv; <code>pi_agents._agents_home</code></td>
+<td><a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">Functional</a>, duplicated</td>
+<td>Low &mdash; sibling modules, one package</td>
+<td>Low&ndash;Medium</td>
+<td><strong>No</strong> &mdash; duplication mistaken for cohesion</td>
+</tr>
+<tr>
+<td><code>_agents_home()</code> fallback &equiv; Makefile <code>AGENTS_HOME</code></td>
+<td><a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">Functional</a>, duplicated</td>
+<td>High &mdash; cross-language</td>
+<td>Low</td>
+<td>Tolerable &mdash; low volatility neutralizes</td>
+</tr>
+<tr>
+<td><code>main.py</code> &rarr; <code>commands/*</code> (registration)</td>
+<td><a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">Model</a>, inconsistent</td>
+<td>Low &mdash; one package</td>
+<td>Low</td>
+<td>Borderline &mdash; low cohesion</td>
+</tr>
+<tr>
+<td><code>check_token()</code> &equiv; Makefile <code>_check-token</code></td>
+<td><a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">Functional</a>, duplicated</td>
+<td>High &mdash; cross-language</td>
+<td>Low</td>
+<td>Yes &mdash; low volatility neutralizes</td>
+</tr>
+</tbody>
+</table>
+<p>The last row is included deliberately as a contrast: it <em>is</em> duplicated, unbalanced coupling, but <a href="https://coupling.dev/posts/dimensions-of-coupling/volatility/">volatility</a> is low enough that the <a href="https://coupling.dev/posts/core-concepts/balance/">balance rule</a> &mdash; <code>(STRENGTH XOR DISTANCE) OR NOT VOLATILE</code> &mdash; is satisfied. Not every imbalance is a defect; only the volatile ones below are.</p>
+
+<div class="issue">
+<h2>Issue: Makefile interface is an implicit, scattered contract</h2>
+<p class="issue-meta"><strong>Integration</strong>: <code>container_cli/commands/*</code> &rarr; <code>config/Makefile</code><br>
+<strong>Severity</strong>: <span class="severity severity-significant">Significant</span></p>
+
+<h3>Knowledge Leakage</h3>
+<p>Every command function knows, as hard-coded strings, two things about the Makefile: the <strong>name of a target</strong> (<code>"spawn"</code>, <code>"list-agents"</code>, <code>"spawn-pi"</code>, <code>"summary-agent"</code>, &hellip;) and the <strong>names of the variables that target accepts</strong> (<code>BRANCH</code>, <code>TASK</code>, <code>CPUS</code>, <code>MEMORY</code>, <code>IMAGE</code>, <code>DOCKERFILE</code>, <code>SUBNET</code>, <code>NETWORK</code>, <code>PI_IMAGE</code>, <code>PI_DOCKERFILE</code>, <code>PI_BASE_URL</code>, <code>PI_MODEL_ID</code>, <code>NAME</code>). That is the Makefile's <em>functional requirements</em> &mdash; what it does and how it must be invoked &mdash; replicated inside Python. The shared knowledge is <strong>implicit</strong>: there is no enum, no schema, no generated mapping. The only place the correspondence is written down is a prose table in <code>docs/agents/cli.md</code>, which nothing keeps honest. <code>run_make</code> centralizes the <em>mechanism</em> (<code>make -C config &lt;target&gt; KEY=VALUE</code>) but not the <em>vocabulary</em>, so each of the five <code>commands/*</code> modules independently owns a fragment of an undeclared contract.</p>
+<p>This is <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">functional coupling</a> &mdash; the components must change together when a target's interface changes &mdash; and it is implicit functional coupling, which the model singles out as particularly dangerous: there is no compiler, type checker, or test that links <code>agents.py:33</code>'s <code>"BRANCH"</code> to the Makefile's <code>BRANCH ?=</code>.</p>
+
+<h3>Complexity Impact</h3>
+<p>A developer changing a Makefile target name or variable cannot see, <em>from the Makefile</em>, that Python depends on it &mdash; the dependency is invisible at the point of change. To safely rename one target the developer must simultaneously hold in mind: the Makefile target, the <code>run_make</code> call site in <code>commands/*</code>, the <code>cli.md</code> mapping table, and the acceptance test. That is knowledge spread across four artifacts in two languages for what should be a trivial rename. It exceeds the 4&plusmn;1 working-memory budget, which is precisely what turns a change from <a href="https://coupling.dev/posts/core-concepts/modularity/">modular</a> (predictable outcome) into <a href="https://coupling.dev/posts/core-concepts/complexity/">complex</a> (outcome discovered only by running it).</p>
+
+<h3>Cascading Changes</h3>
+<ul>
+<li><strong>Renaming <code>list-agents</code> &rarr; <code>agents-list</code> in the Makefile</strong>: the Python literal <code>"list-agents"</code> still type-checks, still passes <code>ruff</code>, still imports cleanly. The break surfaces only when a user runs <code>q agents list</code> and <code>make</code> reports <code>No rule to make target</code>. The acceptance tests mock <code>run_make</code>, so they assert <em>which string was passed</em>, not that the target <em>exists</em> &mdash; there is no test-time signal either.</li>
+<li><strong>Adding a variable to an existing target</strong> (e.g. a <code>--no-cache</code> option for <code>build</code>): requires coordinated edits in <code>build.py</code>, the Makefile, and <code>cli.md</code>, with nothing enforcing that the three agree.</li>
+<li>The coupling is genuinely <a href="https://coupling.dev/posts/core-concepts/balance/">tight</a>: high <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">integration strength</a> (functional) across high <a href="https://coupling.dev/posts/dimensions-of-coupling/distance/">distance</a> &mdash; separate language, separate top-level directory, subprocess boundary. The Makefile is a <a href="https://coupling.dev/posts/dimensions-of-coupling/volatility/">core subdomain</a>: the orchestration logic <em>is</em> the product, and git history shows targets added continuously (PI agents, <code>apply-sensors</code>). High strength + high distance + high <a href="https://coupling.dev/posts/dimensions-of-coupling/volatility/">volatility</a> fails the balance rule.</li>
+</ul>
+<p>Why <strong>Significant</strong> and not Critical: the same person maintains both sides, so <a href="https://coupling.dev/posts/dimensions-of-coupling/distance/">socio-technical distance</a> is low &mdash; there is no cross-team coordination cost &mdash; and Makefile change is mostly <em>additive</em> (new targets), so existing literals rarely break. The danger is real but not yet frequent.</p>
+
+<h3>Recommended Improvement</h3>
+<p>Introduce a single <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">contract</a> module &mdash; e.g. <code>container_cli/makefile.py</code> &mdash; as the <em>only</em> place target names and their permitted variables are written down. One small structure per target (target name + allowed variable keys) converts the implicit functional coupling into explicit <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">contract coupling</a> localized in one file; command modules then reference <code>Targets.SPAWN</code> instead of the literal <code>"spawn"</code>. Optionally add one test that runs <code>make -C config -n &lt;target&gt;</code> (dry-run) for every target in the registry, so a renamed or removed target fails CI instead of a user's terminal.</p>
+<p>This deliberately does <strong>not</strong> reduce distance &mdash; the CLI must wrap the Makefile, that is its purpose, and decomposing further would only raise distance. It reduces <em>strength</em> by encapsulating the contract, and it concentrates the volatile knowledge so a Makefile change has exactly one Python counterpart to update. Trade-off: a thin indirection layer plus the discipline of keeping the registry current &mdash; cheap relative to silent runtime breakage in the product's most-changed area.</p>
+</div>
+
+<div class="issue">
+<h2>Issue: <code>status</code> command bypasses the Makefile and reads the container's private file</h2>
+<p class="issue-meta"><strong>Integration</strong>: <code>agents.status</code> / <code>pi_agents.status</code> &rarr; container worktree <code>.agent/status.json</code><br>
+<strong>Severity</strong>: <span class="severity severity-significant">Significant</span></p>
+
+<h3>Knowledge Leakage</h3>
+<p><code>agents.py:78</code> and <code>pi_agents.py:128</code> build the path <code>$AGENTS_HOME/&lt;branch&gt;/.agent/status.json</code> and read it directly off disk. <code>.agent/</code> is internal bookkeeping created by the container entrypoint (<code>config/entrypoint.sh</code> / <code>entrypoint-pi.sh</code>) for its own use; the CLI treats that private layout as if it were a public interface. This is <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">intrusive coupling</a> &mdash; the highest <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">integration strength</a> &mdash; because the CLI depends on an implementation detail of a different component.</p>
+<p>The leak is twofold: the <em>directory layout</em> (<code>.agent/status.json</code>) and even the <em>fallback message text</em> (<code>[status] No status file found&hellip;</code>, <code>[status] Expected at: &hellip;</code>) are reproduced in Python. They are reproduced because the Makefile <strong>already has</strong> a <code>status-agent</code> target (<code>Makefile:179</code>) that performs the identical read and prints near-identical messages. So this is also <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">functional coupling</a> through duplication &mdash; the knowledge is copied, not shared.</p>
+
+<h3>Complexity Impact</h3>
+<p>There are now two implementations of "show agent status" &mdash; <code>status-agent</code> in Make and <code>status()</code> in Python &mdash; and nothing keeps them consistent. <code>q agents summary</code> routes through <code>make summary-agent</code>, but <code>q agents status</code> does <em>not</em> route through <code>make status-agent</code>; a reader cannot predict from the CLI surface which commands delegate and which reimplement. The Python file read looks like ordinary I/O, not an integration point, so it is easy to miss when reasoning about what depends on the entrypoint's layout &mdash; the integration is hidden, which is the hallmark of <a href="https://coupling.dev/posts/core-concepts/complexity/">complexity</a>.</p>
+
+<h3>Cascading Changes</h3>
+<ul>
+<li><strong>The entrypoint relocates <code>status.json</code></strong> (say to <code>.agent/state/status.json</code>): <code>status-agent</code>, <code>status-pi-agent</code>, <code>agents.status</code>, and <code>pi_agents.status</code> all break &mdash; four sites, two languages &mdash; and the two Python ones give no signal until invoked.</li>
+<li><strong>The "no status file" UX is reworded in the Makefile only</strong>: <code>q &hellip; status</code> silently keeps the old wording; the two surfaces drift apart.</li>
+<li><code>status.json</code> is part of actively-developed structured monitoring (recent commits #7 and #9), so this sits in a <a href="https://coupling.dev/posts/dimensions-of-coupling/volatility/">volatile</a> area &mdash; the duplication <em>will</em> be exercised. Intrusive strength + high distance + volatility is unbalanced and not neutralized.</li>
+</ul>
+
+<h3>Recommended Improvement</h3>
+<p>Route <code>status</code> through the target that already exists: <code>run_make("status-agent", {"BRANCH": branch})</code> &mdash; exactly as <code>summary</code> already does. This removes the intrusive coupling <em>and</em> the duplication in one move: the Makefile becomes the single component that knows the <code>.agent/</code> layout, and the CLI holds only a target name (governed by the contract module proposed in the first issue). The documented rationale for the direct read &mdash; "works after the container has exited" &mdash; is <em>already</em> satisfied by <code>status-agent</code>, which is a pure file read with no live-container dependency, so no capability is lost.</p>
+<p>Trade-off: the Python <code>status</code> currently raises <code>typer.Exit(1)</code> when the file is missing, whereas the Makefile target prints a message and exits <code>0</code>. If a non-zero exit code is contractually required, add an explicit <code>exit 1</code> to the missing-file branch of <code>status-agent</code> rather than reimplementing the read in Python. The cost is one line of Make; the gain is eliminating an intrusive, duplicated integration in a volatile area.</p>
+</div>
+
+<div class="issue">
+<h2>Issue: Worktree-path logic duplicated across command modules</h2>
+<p class="issue-meta"><strong>Integration</strong>: <code>agents._agents_home</code> &equiv; <code>pi_agents._agents_home</code> (and both &equiv; Makefile <code>AGENTS_HOME</code>)<br>
+<strong>Severity</strong>: <span class="severity severity-minor">Minor</span></p>
+
+<h3>Knowledge Leakage</h3>
+<p><code>_agents_home()</code> is byte-for-byte identical in <code>agents.py:15</code> and <code>pi_agents.py:25</code>: "use <code>$AGENTS_HOME</code> if set, else <code>&lt;git-root&gt;/../.worktrees</code>". The same rule is the Makefile's <code>AGENTS_HOME ?= $(dirname GIT_ROOT)/.worktrees</code> (<code>Makefile:54</code>). One business rule &mdash; where agent worktrees live &mdash; implemented three times. This is <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">functional coupling</a> through duplicated knowledge. The <code>run</code>/<code>shell</code> pair in <code>run.py</code> is a smaller instance of the same pattern: two functions with identical bodies that differ only in the target string passed to <code>run_make</code>.</p>
+
+<h3>Complexity Impact</h3>
+<p>The two Python copies sit at low <a href="https://coupling.dev/posts/dimensions-of-coupling/distance/">distance</a> &mdash; sibling modules in one package. High strength at low distance would normally read as <a href="https://coupling.dev/posts/core-concepts/balance/">high cohesion</a>, which is modular. But this is duplication, not cohesion: the copies are not one deliberate unit, they are two units that <em>secretly</em> share a rule. The <code>STRENGTH XOR DISTANCE</code> formula says "balanced" only if you mistake the duplication for cohesion. The real cost is the hidden obligation every developer carries &mdash; to remember that editing one copy means editing the twin.</p>
+
+<h3>Cascading Changes</h3>
+<ul>
+<li><strong>Changing the fallback</strong> (e.g. <code>.worktrees</code> &rarr; <code>.agent-worktrees</code>) requires editing both Python copies; missing one makes <code>q agents &hellip;</code> and <code>q pi &hellip;</code> resolve <em>different</em> worktree roots &mdash; a confusing, hard-to-spot bug.</li>
+<li>The Python &harr; Makefile copy is unbalanced (high strength, high cross-language distance), but <a href="https://coupling.dev/posts/dimensions-of-coupling/volatility/">volatility</a> is low &mdash; the worktree convention rarely changes. By the <a href="https://coupling.dev/posts/core-concepts/balance/">balance rule</a>, low volatility neutralizes it: tolerable <a href="https://coupling.dev/posts/core-concepts/balance/">technical debt</a>, not urgent.</li>
+</ul>
+
+<h3>Recommended Improvement</h3>
+<p>Hoist <code>_agents_home()</code> into <code>utils.py</code>, beside <code>find_git_root</code>, and have both command modules import it &mdash; one definition, genuine <a href="https://coupling.dev/posts/core-concepts/balance/">high cohesion</a> instead of duplication. Collapse <code>run</code>/<code>shell</code> the same way, into one shared helper parameterised by target name. Both are pure DRY fixes at low distance, with no trade-off.</p>
+<p>Leave the Python-vs-Makefile <code>AGENTS_HOME</code> duplication as-is. Its low volatility makes the imbalance acceptable, and unifying it would mean either the CLI parsing the Makefile or the Makefile shelling into Python &mdash; both add more coupling than they remove. This is the model's pragmatism in action: not every imbalance is worth fixing.</p>
+</div>
+
+<div class="issue">
+<h2>Issue: Two inconsistent command-registration patterns</h2>
+<p class="issue-meta"><strong>Integration</strong>: <code>main.py</code> &rarr; <code>commands/*</code><br>
+<strong>Severity</strong>: <span class="severity severity-minor">Minor</span></p>
+
+<h3>Knowledge Leakage</h3>
+<p><code>main.py</code> mounts <code>agents</code> and <code>pi_agents</code> as Typer sub-apps via <code>add_typer(agents.app, &hellip;)</code>, but registers <code>build</code>, <code>network</code>, and <code>run</code> by cherry-picking individual functions: <code>app.command("build")(build.build)</code>. Meanwhile <code>build.py</code>, <code>network.py</code>, and <code>run.py</code> each still create a <code>typer.Typer()</code> <code>app</code> (e.g. <code>build.py:9</code>) and decorate their functions with <code>@app.command()</code> &mdash; yet that <code>app</code> object is never mounted anywhere. <code>main.py</code> carries an inconsistent <a href="https://coupling.dev/posts/dimensions-of-coupling/integration-strength/">model</a> of what a "command module" is: sometimes a sub-app, sometimes a bag of functions.</p>
+
+<h3>Complexity Impact</h3>
+<p>This is a <a href="https://coupling.dev/posts/core-concepts/balance/">low cohesion</a> signal: the <code>app</code> object in <code>build.py</code>/<code>network.py</code>/<code>run.py</code> is dead code that actively misleads. A reader who has seen <code>agents.app</code> mounted reasonably assumes <code>build.app</code> is mounted too, and must trace <code>main.py</code> to discover it is not. The cost is small and contained to one short file, but every new command module forces an unstated choice between two patterns &mdash; accidental complexity with no functional purpose.</p>
+
+<h3>Cascading Changes</h3>
+<p>Low. <code>main.py</code> and <code>commands/*</code> are at minimal <a href="https://coupling.dev/posts/dimensions-of-coupling/distance/">distance</a> &mdash; one package &mdash; and registration changes are infrequent. There is no volatile cascade here; the harm is purely cognitive friction, which is why this is Minor.</p>
+
+<h3>Recommended Improvement</h3>
+<p>Pick one pattern and apply it everywhere. The simplest: every command module exposes a Typer <code>app</code>, and <code>main.py</code> only ever calls <code>add_typer</code>. If flat top-level commands like <code>q build</code> must be preserved (rather than <code>q build build</code>), then drop the unused <code>typer.Typer()</code> from <code>build.py</code>, <code>network.py</code>, and <code>run.py</code> so their functions are honestly just functions, registered directly. Either way the rule "a command module looks like <em>X</em>" becomes true everywhere, and the dead <code>app</code> objects disappear. The only cost is a one-time edit; the gain is one fewer decision per future command module.</p>
+</div>
+
+<hr>
+<p class="footer"><em>This analysis was performed using the <a href="https://coupling.dev">Balanced Coupling</a> model by <a href="https://vladikk.com">Vlad Khononov</a>.</em></p>
+</div>
+
+<script>
+  function getDefaultTheme() {
+    const hour = new Date().getHours();
+    return (hour >= 7 && hour < 19) ? 'light' : 'dark';
+  }
+
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('modularity-review-theme', theme);
+    document.getElementById('theme-icon').textContent = theme === 'light' ? '☾' : '☀';
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    setTheme(current === 'light' ? 'dark' : 'light');
+  }
+
+  const saved = localStorage.getItem('modularity-review-theme');
+  setTheme(saved || getDefaultTheme());
+</script>
+</body>
+</html>
