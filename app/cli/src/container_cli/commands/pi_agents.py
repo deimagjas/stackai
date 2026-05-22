@@ -10,25 +10,14 @@ build.py are not modified — pi commands live under their own subapp.
 
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from container_cli.targets import Target
-from container_cli.utils import find_git_root, run_make
+from container_cli.utils import print_agent_status, run_make
 
 app = typer.Typer(help="PI agent lifecycle (local mlx_lm.server backend)")
-
-
-def _agents_home() -> Path:
-    """Resolve AGENTS_HOME, falling back to sibling .worktrees/ directory."""
-    env_val = os.environ.get("AGENTS_HOME")
-    if env_val:
-        return Path(env_val)
-    return find_git_root().parent / ".worktrees"
 
 
 @app.command()
@@ -126,10 +115,4 @@ def status(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Show PI agent status from persisted status.json file."""
-    status_file = _agents_home() / branch / ".agent" / "status.json"
-    if not status_file.exists():
-        typer.echo(f"[pi-status] No status file found for branch '{branch}'.")
-        typer.echo(f"[pi-status] Expected at: {status_file}")
-        raise typer.Exit(1)
-    data = json.loads(status_file.read_text())
-    typer.echo(json.dumps(data, indent=2))
+    print_agent_status(branch, label="pi-status")

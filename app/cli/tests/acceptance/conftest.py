@@ -42,8 +42,7 @@ def invocation_context(
         patch("container_cli.commands.run.run_make") as m_run,
         patch("container_cli.commands.network.run_make") as m_network,
         patch("container_cli.commands.pi_agents.run_make") as m_pi,
-        patch("container_cli.commands.agents.find_git_root", return_value=repo),
-        patch("container_cli.commands.pi_agents.find_git_root", return_value=repo),
+        patch("container_cli.utils.find_git_root", return_value=repo),
     ):
         ctx = InvocationContext(
             runner=CliRunner(),

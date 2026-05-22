@@ -1,5 +1,6 @@
-"""Shared helpers: git root resolution, Makefile runner, and token validation."""
+"""Shared helpers: git/worktree paths, the Makefile runner, token and status I/O."""
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -35,6 +36,19 @@ def makefile_dir() -> Path:
         Path to `config/` under the git root.
     """
     return find_git_root() / "config"
+
+
+def agents_home() -> Path:
+    """Return the directory that holds agent worktrees.
+
+    Returns:
+        The `AGENTS_HOME` environment variable when set, otherwise a sibling
+        `.worktrees/` directory next to the repository root.
+    """
+    env_val = os.environ.get("AGENTS_HOME")
+    if env_val:
+        return Path(env_val)
+    return find_git_root().parent / ".worktrees"
 
 
 def check_token() -> None:
@@ -76,3 +90,23 @@ def run_make(
         result = subprocess.run(cmd)
         if result.returncode != 0:
             raise typer.Exit(result.returncode)
+
+
+def print_agent_status(branch: str, *, label: str) -> None:
+    """Print the persisted `status.json` for an agent worktree branch.
+
+    Args:
+        branch: The agent branch whose status should be displayed.
+        label: Tag used in the not-found messages (e.g. `status`, `pi-status`).
+
+    Raises:
+        typer.Exit: With code 1 when no status file exists for the branch.
+    """
+    status_file = agents_home() / branch / ".agent" / "status.json"
+    if not status_file.exists():
+        typer.echo(f"[{label}] No status file found for branch '{branch}'.")
+        typer.echo(f"[{label}] Expected at: {status_file}")
+        raise typer.Exit(1)
+
+    data = json.loads(status_file.read_text())
+    typer.echo(json.dumps(data, indent=2))

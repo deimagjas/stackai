@@ -1,24 +1,13 @@
 """Agent lifecycle commands (spawn, list, logs, follow, stop, status, summary)."""
 
-import json
-import os
-from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from container_cli.targets import Target
-from container_cli.utils import check_token, find_git_root, run_make
+from container_cli.utils import check_token, print_agent_status, run_make
 
 app = typer.Typer(help="Agent lifecycle commands")
-
-
-def _agents_home() -> Path:
-    """Resolve AGENTS_HOME, falling back to sibling .worktrees/ directory."""
-    env_val = os.environ.get("AGENTS_HOME")
-    if env_val:
-        return Path(env_val)
-    return find_git_root().parent / ".worktrees"
 
 
 @app.command()
@@ -76,14 +65,7 @@ def status(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Show agent status from persisted status.json file."""
-    status_file = _agents_home() / branch / ".agent" / "status.json"
-    if not status_file.exists():
-        typer.echo(f"[status] No status file found for branch '{branch}'.")
-        typer.echo(f"[status] Expected at: {status_file}")
-        raise typer.Exit(1)
-
-    data = json.loads(status_file.read_text())
-    typer.echo(json.dumps(data, indent=2))
+    print_agent_status(branch, label="status")
 
 
 @app.command()
