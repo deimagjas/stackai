@@ -85,6 +85,7 @@ export CLAUDE_CONTAINER_OAUTH_TOKEN=<your-oauth-token>
 5. container run -d --rm  ← detached (non-blocking)
    • -v $GIT_ROOT:/workspace          ← full repo (read/write)
    • -v $AGENTS_HOME:/worktrees       ← worktree destination
+   • -e AGENT_MODEL=$MODEL            → claude --model $MODEL (default opus)
    • --worktree $BRANCH               → entrypoint creates the worktree
    • --task "$TASK"                   → claude -p "$TASK" in the worktree
          │
@@ -245,6 +246,7 @@ container run -d --rm \
   -v "${HOME}/.claude:/root/.claudenew:ro" \
   -v "${HOME}/.claude.json:/root/.claudenew.json:ro" \
   -e CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 \
+  -e "AGENT_MODEL=${AGENT_MODEL:-opus}" \
   -e "CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CONTAINER_OAUTH_TOKEN}" \
   claude-agent:wolfi \
   --worktree "feat/oauth2" --task "${TASK}"

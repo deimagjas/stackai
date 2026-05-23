@@ -17,6 +17,10 @@ def spawn(
     cpus: Annotated[int | None, typer.Option("--cpus", help="CPU count")] = None,
     memory: Annotated[str | None, typer.Option("--memory", help="Memory limit (e.g. 12G)")] = None,
     image: Annotated[str | None, typer.Option("--image", help="Image tag")] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Claude model the agent runs (e.g. sonnet, opus, haiku)"),
+    ] = None,
 ) -> None:
     """Spawn a detached headless agent container."""
     check_token()
@@ -27,6 +31,8 @@ def spawn(
         make_vars["MEMORY"] = memory
     if image:
         make_vars["IMAGE"] = image
+    if model:
+        make_vars["MODEL"] = model
     run_make(Target.SPAWN, make_vars)
 
 

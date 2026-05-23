@@ -24,3 +24,9 @@ Feature: Spawn agent containers
     When I run "q spawn --branch feat/bar --task work --cpus 8 --memory 16G --image custom:tag"
     Then the command exits successfully
     And the make vars include CPUS="8" and MEMORY="16G" and IMAGE="custom:tag"
+
+  Scenario: Spawn with an explicit agent model
+    Given the CLAUDE_CONTAINER_OAUTH_TOKEN is set
+    When I run "q spawn --branch feat/baz --task work --model opus"
+    Then the command exits successfully
+    And the make vars include MODEL="opus"

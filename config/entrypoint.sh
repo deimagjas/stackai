@@ -22,6 +22,12 @@ AGENT_TASK=""
 PROJECT_NAME=""
 PASSTHROUGH_ARGS=()
 
+# Model the headless agent runs with. The orchestrator passes it via
+# -e AGENT_MODEL; it defaults to opus so the agent runs with the most capable
+# model by default and never inherits the host user's personal `model`
+# preference from the copied settings.json (which can be a different account).
+AGENT_MODEL="${AGENT_MODEL:-opus}"
+
 # ── Functions ─────────────────────────────────────────────────────────────────
 
 parse_args() {
@@ -70,6 +76,7 @@ create_worktree() {
 setup_agent_perms() {
     echo "[entrypoint] Starting Claude agent (headless)..."
     echo "[entrypoint] Task: ${AGENT_TASK}"
+    echo "[entrypoint] Model: ${AGENT_MODEL}"
     echo "---"
     # Make claude's install path traversable for non-root users (installed under /root/)
     # go+x required: agent is in group root (gid=0), so group bits apply, not others bits
@@ -94,13 +101,23 @@ write_status() {
 
 emit_marker() {
     local phase="$1"; shift
-    echo "[agent:status] PHASE=${phase} BRANCH=${WORKTREE_BRANCH} $*"
+    local line="[agent:status] PHASE=${phase} BRANCH=${WORKTREE_BRANCH} $*"
+    # Echo to the container's stdout (read live via `container logs`) and append
+    # to the persisted log so `summary-agent` still finds the markers once the
+    # --rm container is gone and `container logs` no longer works.
+    echo "$line"
+    { echo "$line" >> "${AGENT_DIR}/agent.log"; } 2>/dev/null || true
 }
 
 run_agent() {
     AGENT_DIR="${WORKTREE_PATH}/.agent"
     mkdir -p "$AGENT_DIR"
     chown -R agent:agent "$AGENT_DIR"
+
+    # Start the persisted log empty so a re-spawn on an existing worktree does
+    # not accumulate a previous run's output. Markers and the claude output
+    # below both append to it.
+    { : > "${AGENT_DIR}/agent.log"; } 2>/dev/null || true
 
     # Add .agent/ to worktree .gitignore (safe if dir doesn't exist yet)
     if ! grep -qxF '.agent/' "${WORKTREE_PATH}/.gitignore" 2>/dev/null; then
@@ -117,10 +134,11 @@ run_agent() {
     write_status "working"
     emit_marker "working"
 
-    # Run claude with tee to persist logs; capture exit code through pipe
+    # Run claude with tee to persist logs; capture exit code through pipe.
+    # `tee -a` appends so the "starting"/"working" markers above survive.
     set +e
     su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions \
-        -p "$AGENT_TASK" 2>&1 | tee "$AGENT_DIR/agent.log"
+        --model "$AGENT_MODEL" -p "$AGENT_TASK" 2>&1 | tee -a "$AGENT_DIR/agent.log"
     local exit_code=${PIPESTATUS[0]}
     set -e
 

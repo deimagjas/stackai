@@ -42,8 +42,18 @@ class TestSpawn:
         call_vars = mock_run_make["agents"].call_args[0][1]
         assert call_vars["IMAGE"] == "my-img:latest"
 
+    def test_spawn_with_model(self, mock_run_make, mock_check_token):
+        spawn(branch="b", task="t", cpus=None, memory=None, image=None, model="opus")
+        call_vars = mock_run_make["agents"].call_args[0][1]
+        assert call_vars["MODEL"] == "opus"
+
+    def test_spawn_omits_model_when_unset(self, mock_run_make, mock_check_token):
+        spawn(branch="b", task="t", cpus=None, memory=None, image=None, model=None)
+        call_vars = mock_run_make["agents"].call_args[0][1]
+        assert "MODEL" not in call_vars
+
     def test_spawn_all_optional_params(self, mock_run_make, mock_check_token):
-        spawn(branch="b", task="t", cpus=2, memory="4G", image="img")
+        spawn(branch="b", task="t", cpus=2, memory="4G", image="img", model="opus")
         call_vars = mock_run_make["agents"].call_args[0][1]
         assert call_vars == {
             "BRANCH": "b",
@@ -51,6 +61,7 @@ class TestSpawn:
             "CPUS": "2",
             "MEMORY": "4G",
             "IMAGE": "img",
+            "MODEL": "opus",
         }
 
 

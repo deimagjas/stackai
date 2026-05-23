@@ -69,6 +69,7 @@ Spawns a detached headless agent in an isolated git worktree.
 ```bash
 q spawn --branch feat/oauth2 --task "Implement OAuth2 with JWT tokens"
 q spawn --branch test/payments --task "Write unit tests for payments module" --cpus 4
+q spawn --branch feat/quick-fix --task "Tighten the readme" --model sonnet
 ```
 
 | Option | Required | Description |
@@ -78,8 +79,15 @@ q spawn --branch test/payments --task "Write unit tests for payments module" --c
 | `--cpus` | no | CPU count override |
 | `--memory` | no | Memory limit override (e.g. `8G`) |
 | `--image` | no | Image tag override |
+| `--model` | no | Claude model the agent runs (`opus` default; e.g. `sonnet`, `haiku`) |
 
 Requires `CLAUDE_CONTAINER_OAUTH_TOKEN` to be set.
+
+> **Agent model:** the agent runs `opus` unless `--model` says otherwise. It
+> does **not** inherit the host's `~/.claude/settings.json` `model` preference —
+> that file is copied into the container for credentials only, and a headless
+> agent must not depend on a personal interactive setting. Drop to `sonnet` for
+> lighter tasks. The Makefile passes the choice through as `-e AGENT_MODEL`.
 
 > **Branch naming:** avoid `/` in branch names — they create nested subdirectories in `$AGENTS_HOME` which the entrypoint cannot handle. Use flat names like `feat-oauth2` instead of `feat/oauth2`.
 
