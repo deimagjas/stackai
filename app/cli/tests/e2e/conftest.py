@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -96,16 +97,120 @@ def require_pi_image() -> None:
         pytest.skip("image claude-pi:ubuntu not built — run `q pi build` first")
 
 
-@pytest.fixture()
-def require_mlx_server() -> None:
-    """Skip the test unless the local mlx_lm.server is reachable on the host."""
-    url = os.environ.get("STACKAI_E2E_MLX_URL", "http://localhost:8080/v1/models")
+def _http_ok(url: str, *, timeout: float) -> bool:
+    """Tiny probe — True when the URL responds 200."""
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            if resp.status != 200:
-                pytest.skip(f"mlx_lm.server at {url} returned HTTP {resp.status}")
-    except (urllib.error.URLError, OSError) as exc:
-        pytest.skip(f"mlx_lm.server unreachable at {url} ({exc}) — run `uv run iac server start`")
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return resp.status == 200
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def _mlx_url() -> str:
+    return os.environ.get("STACKAI_E2E_MLX_URL", "http://localhost:8080/v1/models")
+
+
+@pytest.fixture(scope="session")
+def _mlx_server_lifecycle() -> Iterator[subprocess.Popen[bytes] | None]:
+    """Optionally spawn mlx_lm.server for the duration of the e2e session.
+
+    Activated by exporting ``STACKAI_E2E_AUTOSTART_MLX=1``. Without that flag,
+    or when a server is already reachable on the expected URL, this is a no-op
+    — tests still see whatever process the user manages out of band.
+
+    The exact invocation mirrors the parameters the PI agent expects (no
+    coupling to the `iac` CLI: the e2e suite must run standalone). First-run
+    cost is significant — model download + warmup can take several minutes;
+    raise the wait ceiling with ``STACKAI_E2E_MLX_BOOT_TIMEOUT`` if needed.
+    """
+    if os.environ.get("STACKAI_E2E_AUTOSTART_MLX") != "1":
+        yield None
+        return
+
+    url = _mlx_url()
+    if _http_ok(url, timeout=2):
+        # Pre-existing server (e.g. started via `uv run iac server start`) —
+        # leave it alone so manual setups survive teardown.
+        yield None
+        return
+
+    # conftest.py lives at app/cli/tests/e2e/ → repo root is parents[4].
+    iac_dir = Path(__file__).resolve().parents[4] / "iac"
+    cmd = [
+        "uv", "run", "--directory", str(iac_dir), "mlx_lm.server",
+        "--model", "mlx-community/gemma-4-26b-a4b-it-4bit",
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--prompt-cache-size", "5",
+        "--prompt-cache-bytes", "6GB",
+        "--decode-concurrency", "4",
+        "--prompt-concurrency", "2",
+        "--prefill-step-size", "1024",
+        "--temp", "0.9",
+        "--top-p", "0.95",
+        "--top-k", "40",
+        "--min-p", "0.0",
+        "--max-tokens", "2048",
+        "--use-default-chat-template",
+        "--log-level", "INFO",
+    ]
+
+    log_path = Path(tempfile.gettempdir()) / "stackai-e2e-mlx.log"
+    log_handle = log_path.open("ab")
+    print(f"\n[mlx] starting mlx_lm.server (logs: {log_path})", flush=True)
+    proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell.
+        cmd,
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    try:
+        timeout = float(os.environ.get("STACKAI_E2E_MLX_BOOT_TIMEOUT", "600"))
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"mlx_lm.server exited during startup (code {proc.returncode});"
+                    f" see {log_path}"
+                )
+            if _http_ok(url, timeout=2):
+                break
+            time.sleep(3)
+        else:
+            proc.terminate()
+            raise TimeoutError(
+                f"mlx_lm.server did not become reachable at {url} within"
+                f" {timeout}s; see {log_path}"
+            )
+        print(f"[mlx] ready on {url}", flush=True)
+        yield proc
+    finally:
+        log_handle.close()
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+@pytest.fixture()
+def require_mlx_server(_mlx_server_lifecycle) -> None:
+    """Skip the test unless the local mlx_lm.server is reachable on the host.
+
+    Composes with ``_mlx_server_lifecycle`` so when the autostart env var is
+    set, the server is already up by the time this check runs.
+    """
+    url = _mlx_url()
+    if _http_ok(url, timeout=5):
+        return
+    pytest.skip(
+        f"mlx_lm.server unreachable at {url} — run `uv run iac server start`"
+        " or set STACKAI_E2E_AUTOSTART_MLX=1 to let the suite spawn it"
+    )
 
 
 @pytest.fixture()

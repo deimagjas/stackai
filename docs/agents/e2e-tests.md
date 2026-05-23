@@ -37,11 +37,37 @@ Each test skips itself, with a reason, when a prerequisite is missing.
 The PI server URL defaults to `http://localhost:8080/v1/models`; override the
 reachability check with `STACKAI_E2E_MLX_URL` if your server listens elsewhere.
 
+### Auto-launching `mlx_lm.server` from the suite
+
+Export `STACKAI_E2E_AUTOSTART_MLX=1` and the e2e session bootstraps the server
+itself — there's no need to start it out of band. The session-scoped fixture
+in `tests/e2e/conftest.py`:
+
+1. Skips if the URL is already reachable (an existing server you launched
+   manually is honoured and not torn down).
+2. Otherwise spawns the exact `mlx_lm.server` invocation the PI agent
+   expects (`mlx-community/gemma-4-26b-a4b-it-4bit`, port 8080,
+   `--temp 0.9 --top-p 0.95`, `--prompt-cache-bytes 6GB`, etc.).
+3. Polls `/v1/models` until ready, then yields to the tests.
+4. Terminates the subprocess at session teardown.
+
+Logs land in `$TMPDIR/stackai-e2e-mlx.log`. The first run downloads the model
+(~16 GB) and warms the prompt cache, so the boot can take several minutes —
+override the wait ceiling with `STACKAI_E2E_MLX_BOOT_TIMEOUT` (seconds,
+default 600).
+
 ## How to run
 
 ```bash
 cd app/cli
 make e2e-test          # STACKAI_E2E=1 uv run pytest tests/e2e -v -m e2e
+```
+
+With auto-launched mlx_lm.server (PI test runs end-to-end too):
+
+```bash
+cd app/cli
+STACKAI_E2E_AUTOSTART_MLX=1 make e2e-test
 ```
 
 Run a single test:
