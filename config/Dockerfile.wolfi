@@ -80,10 +80,17 @@ COPY --from=builder /root/.cargo/bin/dust   /usr/local/bin/dust
 COPY --from=builder /root/.cargo/bin/procs  /usr/local/bin/procs
 COPY --from=builder /root/.cargo/bin/btm    /usr/local/bin/btm
 
-# Claude Code CLI
+# Claude Code CLI — pin the install at build time. CLAUDE_CODE_DISABLE_AUTOUPDATE=1
+# in this image means the CLI never updates inside the container, so the image
+# ships exactly the version the installer returns at build time. `claude --version`
+# at the end serves two purposes: log the version into the build output and act
+# as a cache-busting tail so a `--no-cache-filter` rebuild picks up a newer CLI
+# (e.g. 2.1.148+ for the Opus `role 'system'` fix) without forcing a full
+# --no-cache that would rebuild the slow Rust builder stage.
 RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
     && yes | bash /tmp/claude-install.sh \
-    && rm -f /tmp/claude-install.sh
+    && rm -f /tmp/claude-install.sh \
+    && claude --version
 
 # OpenCode
 RUN curl -fsSL https://opencode.ai/install | bash \

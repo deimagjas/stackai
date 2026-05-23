@@ -44,6 +44,11 @@ MEMORY     ?= 3G
 # Agent variables
 BRANCH     ?= agent-$(shell date +%s)
 TASK       ?= Explore the codebase and report what you find.
+# MODEL: Claude model the headless agent runs with. Defaults to opus — the
+# agent doesn't inherit the host's interactive `model` preference (see the
+# entrypoint); a fixed default keeps the choice in the orchestrator. Override
+# per spawn, e.g. `make spawn ... MODEL=sonnet`.
+MODEL      ?= opus
 
 # Derived paths
 GIT_ROOT      := $(shell git -C $(CURDIR) rev-parse --show-toplevel)
@@ -109,6 +114,7 @@ spawn: network _check-token
 	@echo "[spawn] Launching agent: $(PROJECT_NAME)-$(CONTAINER_BRANCH)"
 	@echo "[spawn] Worktree: $(WORKTREES_DIR)/$(BRANCH)"
 	@echo "[spawn] Task: $(TASK)"
+	@echo "[spawn] Model: $(MODEL)"
 	container run -d --rm \
 		--name $(PROJECT_NAME)-$(CONTAINER_BRANCH) \
 		--network $(NETWORK) \
@@ -120,6 +126,7 @@ spawn: network _check-token
 		-v $(HOME)/.claude:/root/.claudenew:ro \
 		-v $(HOME)/.claude.json:/root/.claudenew.json:ro \
 		-e CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 \
+		-e AGENT_MODEL=$(MODEL) \
 		-e CLAUDE_CODE_OAUTH_TOKEN=$${$(HOST_TOKEN_VAR)} \
 		$(IMAGE) \
 		--worktree "$(BRANCH)" --task "$(TASK)"
@@ -392,6 +399,7 @@ help:
 	@printf "    %-20s %s\n" "CPUS"           "$(CPUS)"
 	@printf "    %-20s %s\n" "MEMORY"         "$(MEMORY)"
 	@printf "    %-20s %s\n" "BRANCH"         "$(BRANCH)"
+	@printf "    %-20s %s\n" "MODEL"          "$(MODEL)"
 	@printf "    %-20s %s\n" "PROJECT_NAME"   "$(PROJECT_NAME)"
 	@printf "    %-20s %s\n" "GIT_ROOT"       "$(GIT_ROOT)"
 	@printf "    %-20s %s\n" "AGENTS_HOME"    "$(AGENTS_HOME)"

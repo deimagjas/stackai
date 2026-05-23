@@ -342,7 +342,21 @@ WRAPPER_EOF
 
     It "runs su-exec with correct claude command"
       When run run_entrypoint --worktree agent-br --task "do work"
-      The output should include "[MOCK] su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p do work"
+      The output should include "[MOCK] su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions --model opus -p do work"
+      The status should equal 0
+    End
+
+    It "defaults the agent model to opus"
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "[entrypoint] Model: opus"
+      The status should equal 0
+    End
+
+    It "honors AGENT_MODEL when the orchestrator sets it"
+      export AGENT_MODEL=sonnet
+      When run run_entrypoint --worktree agent-br --task "do work"
+      The output should include "claude --dangerously-skip-permissions --model sonnet -p do work"
+      The output should include "[entrypoint] Model: sonnet"
       The status should equal 0
     End
 

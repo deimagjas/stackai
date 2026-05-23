@@ -7,7 +7,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 import typer
 
-from container_cli.utils import check_token, find_git_root, makefile_dir, run_make
+from container_cli.utils import (
+    agents_home,
+    check_token,
+    find_git_root,
+    makefile_dir,
+    print_agent_status,
+    run_make,
+)
 
 # ---------- find_git_root ----------
 
@@ -132,3 +139,49 @@ class TestRunMake:
             run_make("build")
             m_sub.assert_called_once()
             m_exec.assert_not_called()
+
+
+# ---------- agents_home ----------
+
+
+class TestAgentsHome:
+    def test_uses_env_var(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        assert agents_home() == tmp_path
+
+    def test_fallback_path_name(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("AGENTS_HOME", raising=False)
+        with patch("container_cli.utils.find_git_root", return_value=Path("/home/user/repo")):
+            assert agents_home() == Path("/home/user/.worktrees")
+
+
+# ---------- print_agent_status ----------
+
+
+class TestPrintAgentStatus:
+    def test_exits_when_status_file_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        with pytest.raises(typer.Exit) as exc_info:
+            print_agent_status("feat-x", label="status")
+        assert exc_info.value.exit_code == 1
+        assert "[status] No status file found" in capsys.readouterr().out
+
+    def test_prints_json_when_status_file_exists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        status_file = tmp_path / "feat-x" / ".agent" / "status.json"
+        status_file.parent.mkdir(parents=True)
+        status_file.write_text('{"phase": "completed"}')
+        print_agent_status("feat-x", label="status")
+        assert "completed" in capsys.readouterr().out
+
+    def test_label_tags_the_not_found_message(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        with pytest.raises(typer.Exit):
+            print_agent_status("feat-x", label="pi-status")
+        assert "[pi-status]" in capsys.readouterr().out

@@ -10,24 +10,14 @@ build.py are not modified — pi commands live under their own subapp.
 
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from container_cli.utils import find_git_root, run_make
+from container_cli.targets import Target
+from container_cli.utils import print_agent_status, run_make
 
 app = typer.Typer(help="PI agent lifecycle (local mlx_lm.server backend)")
-
-
-def _agents_home() -> Path:
-    """Resolve AGENTS_HOME, falling back to sibling .worktrees/ directory."""
-    env_val = os.environ.get("AGENTS_HOME")
-    if env_val:
-        return Path(env_val)
-    return find_git_root().parent / ".worktrees"
 
 
 @app.command()
@@ -43,7 +33,7 @@ def build(
         make_vars["PI_IMAGE"] = image
     if dockerfile:
         make_vars["PI_DOCKERFILE"] = dockerfile
-    run_make("build-pi", make_vars)
+    run_make(Target.BUILD_PI, make_vars)
 
 
 @app.command()
@@ -87,13 +77,13 @@ def spawn(
         make_vars["PI_BASE_URL"] = base_url
     if model_id:
         make_vars["PI_MODEL_ID"] = model_id
-    run_make("spawn-pi", make_vars)
+    run_make(Target.SPAWN_PI, make_vars)
 
 
 @app.command(name="list")
 def list_agents() -> None:
     """List active PI agent containers and PI worktrees."""
-    run_make("list-pi-agents")
+    run_make(Target.LIST_PI_AGENTS)
 
 
 @app.command()
@@ -101,7 +91,7 @@ def logs(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Show logs for a PI agent (live container or persisted log)."""
-    run_make("logs-pi-agent", {"BRANCH": branch})
+    run_make(Target.LOGS_PI_AGENT, {"BRANCH": branch})
 
 
 @app.command()
@@ -109,7 +99,7 @@ def follow(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Follow live streaming logs for a PI agent."""
-    run_make("follow-pi-agent", {"BRANCH": branch}, tty=True)
+    run_make(Target.FOLLOW_PI_AGENT, {"BRANCH": branch}, tty=True)
 
 
 @app.command()
@@ -117,7 +107,7 @@ def stop(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Stop a PI agent container."""
-    run_make("stop-pi-agent", {"BRANCH": branch})
+    run_make(Target.STOP_PI_AGENT, {"BRANCH": branch})
 
 
 @app.command()
@@ -125,10 +115,4 @@ def status(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Show PI agent status from persisted status.json file."""
-    status_file = _agents_home() / branch / ".agent" / "status.json"
-    if not status_file.exists():
-        typer.echo(f"[pi-status] No status file found for branch '{branch}'.")
-        typer.echo(f"[pi-status] Expected at: {status_file}")
-        raise typer.Exit(1)
-    data = json.loads(status_file.read_text())
-    typer.echo(json.dumps(data, indent=2))
+    print_agent_status(branch, label="pi-status")

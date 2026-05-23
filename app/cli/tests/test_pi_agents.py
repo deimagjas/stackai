@@ -6,14 +6,10 @@ CLAUDE_CONTAINER_OAUTH_TOKEN — they hit the local mlx_lm.server.
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 import typer
 
 from container_cli.commands.pi_agents import (
-    _agents_home,
     build,
     follow,
     list_agents,
@@ -148,18 +144,3 @@ class TestStatus:
         status_file.parent.mkdir(parents=True)
         status_file.write_text('{"phase": "completed", "agent_kind": "pi"}')
         status(branch="pi/x")
-
-
-class TestAgentsHome:
-    def test_uses_env_var(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
-        assert _agents_home() == tmp_path
-
-    def test_fallback_path_name(self, monkeypatch):
-        monkeypatch.delenv("AGENTS_HOME", raising=False)
-        with patch(
-            "container_cli.commands.pi_agents.find_git_root",
-            return_value=Path("/home/user/repo"),
-        ):
-            result = _agents_home()
-        assert result == Path("/home/user/.worktrees")

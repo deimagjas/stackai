@@ -7,7 +7,6 @@ import pytest
 import typer
 
 from container_cli.commands.agents import (
-    _agents_home,
     follow,
     list_agents,
     logs,
@@ -43,8 +42,18 @@ class TestSpawn:
         call_vars = mock_run_make["agents"].call_args[0][1]
         assert call_vars["IMAGE"] == "my-img:latest"
 
+    def test_spawn_with_model(self, mock_run_make, mock_check_token):
+        spawn(branch="b", task="t", cpus=None, memory=None, image=None, model="opus")
+        call_vars = mock_run_make["agents"].call_args[0][1]
+        assert call_vars["MODEL"] == "opus"
+
+    def test_spawn_omits_model_when_unset(self, mock_run_make, mock_check_token):
+        spawn(branch="b", task="t", cpus=None, memory=None, image=None, model=None)
+        call_vars = mock_run_make["agents"].call_args[0][1]
+        assert "MODEL" not in call_vars
+
     def test_spawn_all_optional_params(self, mock_run_make, mock_check_token):
-        spawn(branch="b", task="t", cpus=2, memory="4G", image="img")
+        spawn(branch="b", task="t", cpus=2, memory="4G", image="img", model="opus")
         call_vars = mock_run_make["agents"].call_args[0][1]
         assert call_vars == {
             "BRANCH": "b",
@@ -52,6 +61,7 @@ class TestSpawn:
             "CPUS": "2",
             "MEMORY": "4G",
             "IMAGE": "img",
+            "MODEL": "opus",
         }
 
 
@@ -98,22 +108,8 @@ class TestStatus:
     def test_agents_home_fallback(self, monkeypatch):
         monkeypatch.delenv("AGENTS_HOME", raising=False)
         with (
-            patch("container_cli.commands.agents.find_git_root", return_value=Path("/fake/repo")),
+            patch("container_cli.utils.find_git_root", return_value=Path("/fake/repo")),
             pytest.raises(typer.Exit) as exc_info,
         ):
             status(branch="nonexistent-branch")
         assert exc_info.value.exit_code == 1
-
-
-class TestAgentsHome:
-    def test_uses_env_var(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
-        assert _agents_home() == tmp_path
-
-    def test_fallback_path_name(self, monkeypatch):
-        monkeypatch.delenv("AGENTS_HOME", raising=False)
-        with patch(
-            "container_cli.commands.agents.find_git_root", return_value=Path("/home/user/repo")
-        ):
-            result = _agents_home()
-        assert result == Path("/home/user/.worktrees")

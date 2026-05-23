@@ -127,9 +127,11 @@ container run -d --rm claude-agent:wolfi \
 2. `git -C /workspace worktree add /worktrees/<branch> -b <branch>`
    - If the branch already exists: `git worktree add /worktrees/<branch> <branch>`
 3. `cd /worktrees/<branch>`
-4. `claude --dangerously-skip-permissions -p "<task>"`
+4. `claude --dangerously-skip-permissions --model "$AGENT_MODEL" -p "<task>"`
 
 **Why `--dangerously-skip-permissions`:** In headless mode there is no interactive user to approve permissions. The container is a sandboxed environment with access only to the mounted worktree, so it is safe to skip confirmations.
+
+**Why `--model "$AGENT_MODEL"`:** The host's `~/.claude` is copied into the container for credentials, and that copy includes the host user's personal `settings.json` — whose `model` preference must not silently govern a headless agent (the container's OAuth token may belong to a different plan). The entrypoint pins the model explicitly: `AGENT_MODEL` is passed via `-e AGENT_MODEL` and defaults to `opus`. Override per spawn with `q spawn --model <model>` or `make spawn ... MODEL=<model>`.
 
 **Why run as `agent` (non-root):** Claude CLI blocks `--dangerously-skip-permissions` when the process runs as `root` (uid 0). The entrypoint uses `su-exec` to drop to the `agent` user before executing Claude.
 
@@ -366,7 +368,7 @@ RUN addgroup -S agent \
        │
        └─► /home/agent/.claude/   (copied + chown → agent)
                   │
-           su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions -p "..."
+           su-exec agent env HOME=/home/agent claude --dangerously-skip-permissions --model "$AGENT_MODEL" -p "..."
 ```
 
 The entrypoint:

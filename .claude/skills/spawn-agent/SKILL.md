@@ -46,7 +46,16 @@ PROJECT_NAME=$(basename "$GIT_ROOT")          # e.g. stackai
 WORKTREES_DIR="${AGENTS_HOME}"                # from env var, e.g. ~/agents
 NETWORK=claude-agent-net
 IMAGE=claude-agent:wolfi
+AGENT_MODEL=opus                              # model the headless agent runs
 ```
+
+**Agent model.** The headless agent runs whatever `AGENT_MODEL` is passed via
+`-e AGENT_MODEL`; it defaults to `opus` so the agent runs with the most capable
+model out of the box. Do **not** rely on the host's `~/.claude/settings.json`
+`model` preference — it is copied into the container but a headless agent must
+not inherit a personal interactive setting, and the container's OAuth token may
+belong to a different plan. Override per spawn when a lighter task warrants it
+(`q spawn --model sonnet`, or `-e AGENT_MODEL=sonnet` on a raw `container run`).
 
 Container names follow the pattern: `<project>-<sanitized-branch>`
 Branch sanitization — each `/`, `_`, or space becomes a single `-`, lowercased:
@@ -143,6 +152,7 @@ container run -d --rm \
   -v "${HOME}/.claude:/root/.claudenew:ro" \
   -v "${HOME}/.claude.json:/root/.claudenew.json:ro" \
   -e CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 \
+  -e "AGENT_MODEL=${AGENT_MODEL:-opus}" \
   -e "CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CONTAINER_OAUTH_TOKEN}" \
   claude-agent:wolfi \
   --worktree "${BRANCH}" --task "${TASK}"
@@ -405,6 +415,8 @@ Full docs: https://github.com/apple/container/blob/main/docs/command-reference.m
   the container exits so you can review the agent's work.
 - **CLAUDE_CONTAINER_OAUTH_TOKEN** must be set — containers authenticate with this,
   not the host Claude session.
+- **AGENT_MODEL** controls the agent's Claude model (`opus` by default). The agent
+  does not inherit the host's `settings.json` model preference — pass it explicitly.
 - The image `claude-agent:wolfi` must exist. If not: `cd <git-root>/config && make build`
 - Multiple agents run in parallel — each gets a unique container + worktree.
 - Branch names with `/` (e.g., `feat/auth`) are valid for git; sanitized for container

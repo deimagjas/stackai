@@ -69,6 +69,7 @@ Spawns a detached headless agent in an isolated git worktree.
 ```bash
 q spawn --branch feat/oauth2 --task "Implement OAuth2 with JWT tokens"
 q spawn --branch test/payments --task "Write unit tests for payments module" --cpus 4
+q spawn --branch feat/quick-fix --task "Tighten the readme" --model sonnet
 ```
 
 | Option | Required | Description |
@@ -78,8 +79,15 @@ q spawn --branch test/payments --task "Write unit tests for payments module" --c
 | `--cpus` | no | CPU count override |
 | `--memory` | no | Memory limit override (e.g. `8G`) |
 | `--image` | no | Image tag override |
+| `--model` | no | Claude model the agent runs (`opus` default; e.g. `sonnet`, `haiku`) |
 
 Requires `CLAUDE_CONTAINER_OAUTH_TOKEN` to be set.
+
+> **Agent model:** the agent runs `opus` unless `--model` says otherwise. It
+> does **not** inherit the host's `~/.claude/settings.json` `model` preference —
+> that file is copied into the container for credentials only, and a headless
+> agent must not depend on a personal interactive setting. Drop to `sonnet` for
+> lighter tasks. The Makefile passes the choice through as `-e AGENT_MODEL`.
 
 > **Branch naming:** avoid `/` in branch names — they create nested subdirectories in `$AGENTS_HOME` which the entrypoint cannot handle. Use flat names like `feat-oauth2` instead of `feat/oauth2`.
 
@@ -235,15 +243,21 @@ app/cli/
 ├── pyproject.toml                    ← uv project, entry point: q
 └── src/
     └── container_cli/
-        ├── main.py                   ← registers all commands + agents sub-app
-        ├── utils.py                  ← find_git_root, makefile_dir, check_token, run_make
+        ├── main.py                   ← registers all commands + agents/pi sub-apps
+        ├── targets.py                ← Target enum: the config/Makefile target contract
+        ├── utils.py                  ← git/worktree paths, run_make, check_token, print_agent_status
         └── commands/
             ├── build.py              ← build, clean, clean-network, clean-all
             ├── network.py            ← network
             ├── run.py                ← run, shell
-            ├── agents.py             ← spawn, list, logs, follow, stop
+            ├── agents.py             ← spawn, list, logs, follow, stop, status, summary
             └── pi_agents.py          ← pi build/spawn/list/logs/follow/stop/status
 ```
+
+> Target names are not free strings: every Makefile target the CLI invokes is a
+> member of the `Target` enum in `targets.py`, and `tests/test_targets.py`
+> verifies each one against `config/Makefile`. Real-container round-trip tests
+> live in `tests/e2e/` — see [e2e-tests.md](./e2e-tests.md).
 
 ---
 
