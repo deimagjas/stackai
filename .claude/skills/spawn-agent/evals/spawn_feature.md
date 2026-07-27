@@ -16,7 +16,7 @@ User says:
 2. Determines agent type = **feature**
 3. Detects git root from current directory
 4. Builds task prompt for feature type mentioning "JWT authentication in the API"
-5. Sanitizes branch: `feat/jwt-auth` → container name `qubits-team-feat-jwt-auth`
+5. Sanitizes branch: `feat/jwt-auth` → container name `<project-name>-feat-jwt-auth` (e.g. `stackai-feat-jwt-auth`)
 6. Checks `CLAUDE_CONTAINER_OAUTH_TOKEN` is set (warns if not)
 7. Runs `container run -d --rm ...` with:
    - `--worktree feat/jwt-auth`

@@ -120,6 +120,31 @@ Work autonomously, read the codebase as needed, and commit any changes.
 
 ## Spawning an agent
 
+**Step 0: Assign BRANCH and TASK safely — never inline user text**
+
+User-provided task text must NEVER be typed literally inside a double-quoted
+shell argument: `$(...)`, backticks and `$VAR` expand on the **host** shell
+before the container ever sees them. Always assign through a single-quoted
+heredoc first, then expand only the variable:
+
+```bash
+# SAFE: single-quoted delimiter ('EOF') disables all expansion of the body
+TASK=$(cat <<'EOF'
+<paste the user's task text here, verbatim>
+EOF
+)
+BRANCH=feat/my-feature   # only [A-Za-z0-9._/-], no leading '-' or '/', no '..'
+```
+
+```bash
+# UNSAFE — never do this (host expands $(...) inside double quotes):
+container run ... --task "Fix the bug in $(parse_user_input)"
+```
+
+Branch names must match `[A-Za-z0-9._/-]`, start with an alphanumeric, and
+contain no `..` — the `q` CLI rejects anything else, and raw `container run`
+invocations must follow the same rule.
+
 **Step 1: Check env vars**
 ```bash
 test -n "$CLAUDE_CONTAINER_OAUTH_TOKEN" || echo "ERROR: export CLAUDE_CONTAINER_OAUTH_TOKEN=<token>"

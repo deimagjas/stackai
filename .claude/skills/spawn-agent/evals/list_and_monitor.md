@@ -13,7 +13,7 @@ User says:
 ## Expected behavior (list)
 
 1. Skill triggers
-2. Runs: `container list 2>/dev/null | grep "qubits-team"`
+2. Runs: `container list 2>/dev/null | grep "<project-name>"` (basename of git root, e.g. `stackai`)
 3. Also shows worktrees on disk (with status from `status.json` if available)
 4. Presents output in a readable format to the user
 
@@ -29,7 +29,7 @@ User says:
 1. Skill triggers
 2. Reads `status.json` from `$AGENTS_HOME/feat/jwt-auth/.agent/status.json` for quick status
 3. If more detail needed, reads container logs or persisted `.agent/agent.log`
-4. Sanitizes container name correctly: `feat/jwt-auth` → `qubits-team-feat-jwt-auth`
+4. Sanitizes container name correctly: `feat/jwt-auth` → `<project-name>-feat-jwt-auth`
 5. **Reads and summarizes** the output — does NOT just dump raw logs
 6. Tells user: agent is working on X, currently at step Y, last action was Z
 
