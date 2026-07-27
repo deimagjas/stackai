@@ -2,7 +2,7 @@
 name = "qubits-cli"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["typer>=0.12", "rich>=13"]
+dependencies = ["typer>=0.12"]
 
 [project.scripts]
 q = "container_cli.main:app"

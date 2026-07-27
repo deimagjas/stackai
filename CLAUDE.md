@@ -114,8 +114,8 @@ The rules below cannot be enforced by Ruff and must be applied by hand:
 ## Architecture
 
 - **`config/`** — Container infrastructure: `Dockerfile.wolfi` (production, multi-stage: Rust tool compilation → runtime with Claude CLI, Node, Python), `entrypoint.sh` (credential injection + worktree creation + su-exec privilege drop), `Makefile` (orchestration)
-- **`app/cli/`** — Python CLI (`q`) using Typer+Rich that wraps Makefile targets. Entry point registered as `q` in pyproject.toml. Commands delegate to `make` via `utils.run_make()`
-- **`.claude/skills/`** — Host-side Claude Code skills for multi-agent orchestration (spawn-agent, spawn-agent-workspace)
+- **`app/cli/`** — Python CLI (`q`) using Typer that wraps Makefile targets. Entry point registered as `q` in pyproject.toml. Commands delegate to `make` via `utils.run_make()`
+- **`.claude/skills/`** — Host-side Claude Code skills for multi-agent orchestration (spawn-agent); `spawn-agent-workspace/` is the gitignored eval-output workspace (see `docs/agents/evals.md`)
 - **`docs/agents/`** — All project documentation (container reference, CLI, setup/auth, skill architecture, evals)
 
 ### Key concepts

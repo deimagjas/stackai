@@ -2,12 +2,18 @@
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
 import typer
 
 from container_cli.targets import Target
+
+# Branch names must start with an alphanumeric and use only safe characters,
+# so a value can never be parsed as a flag (leading `-`), an absolute path
+# (leading `/`), or a shell word boundary once it reaches make/git.
+_BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 
 
 def find_git_root() -> Path:
@@ -49,6 +55,40 @@ def agents_home() -> Path:
     if env_val:
         return Path(env_val)
     return find_git_root().parent / ".worktrees"
+
+
+def validate_branch(branch: str) -> None:
+    """Reject branch names that could be misinterpreted by make, git, or the shell.
+
+    Args:
+        branch: Candidate git branch name received from the CLI.
+
+    Raises:
+        typer.Exit: With code 1 when the name is empty, contains `..`, or has
+            characters outside `[A-Za-z0-9._/-]` (or does not start with an
+            alphanumeric character).
+    """
+    if not branch or ".." in branch or not _BRANCH_RE.fullmatch(branch):
+        typer.echo(f"[error] invalid branch name: {branch!r}", err=True)
+        raise typer.Exit(1)
+
+
+def validate_task(task: str) -> None:
+    """Reject task descriptions that could smuggle control characters to the host.
+
+    Args:
+        task: Task prompt text received from the CLI.
+
+    Raises:
+        typer.Exit: With code 1 when the task is empty or contains control
+            characters (newlines, carriage returns, tabs, NUL, DEL).
+    """
+    if not task or any(ord(char) < 32 or ord(char) == 127 for char in task):
+        typer.echo(
+            "[error] invalid task: must be non-empty and contain no control characters",
+            err=True,
+        )
+        raise typer.Exit(1)
 
 
 def check_token() -> None:
@@ -100,9 +140,14 @@ def print_agent_status(branch: str, *, label: str) -> None:
         label: Tag used in the not-found messages (e.g. `status`, `pi-status`).
 
     Raises:
-        typer.Exit: With code 1 when no status file exists for the branch.
+        typer.Exit: With code 1 when the branch resolves outside the worktrees
+            directory or no status file exists for the branch.
     """
-    status_file = agents_home() / branch / ".agent" / "status.json"
+    base = agents_home().resolve()
+    status_file = (agents_home() / branch / ".agent" / "status.json").resolve()
+    if base not in status_file.parents:
+        typer.echo(f"[{label}] invalid branch path: {branch!r}", err=True)
+        raise typer.Exit(1)
     if not status_file.exists():
         typer.echo(f"[{label}] No status file found for branch '{branch}'.")
         typer.echo(f"[{label}] Expected at: {status_file}")

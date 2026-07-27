@@ -5,7 +5,13 @@ from typing import Annotated
 import typer
 
 from container_cli.targets import Target
-from container_cli.utils import check_token, print_agent_status, run_make
+from container_cli.utils import (
+    check_token,
+    print_agent_status,
+    run_make,
+    validate_branch,
+    validate_task,
+)
 
 app = typer.Typer(help="Agent lifecycle commands")
 
@@ -23,6 +29,8 @@ def spawn(
     ] = None,
 ) -> None:
     """Spawn a detached headless agent container."""
+    validate_branch(branch)
+    validate_task(task)
     check_token()
     make_vars: dict[str, str] = {"BRANCH": branch, "TASK": task}
     if cpus is not None:
@@ -47,6 +55,7 @@ def logs(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Show logs for a branch agent."""
+    validate_branch(branch)
     run_make(Target.LOGS_AGENT, {"BRANCH": branch})
 
 
@@ -55,6 +64,7 @@ def follow(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Follow live streaming logs for a branch agent."""
+    validate_branch(branch)
     run_make(Target.FOLLOW_AGENT, {"BRANCH": branch}, tty=True)
 
 
@@ -63,6 +73,7 @@ def stop(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Stop a branch agent container."""
+    validate_branch(branch)
     run_make(Target.STOP_AGENT, {"BRANCH": branch})
 
 
@@ -71,6 +82,7 @@ def status(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Show agent status from persisted status.json file."""
+    validate_branch(branch)
     print_agent_status(branch, label="status")
 
 
@@ -79,4 +91,5 @@ def summary(
     branch: Annotated[str, typer.Option("--branch", help="Agent branch name")],
 ) -> None:
     """Show structured lifecycle events for a branch agent."""
+    validate_branch(branch)
     run_make(Target.SUMMARY_AGENT, {"BRANCH": branch})
