@@ -90,12 +90,25 @@ setup_agent_perms() {
     chown -R agent:agent "$WORKTREE_PATH"
 }
 
+json_escape() {
+    # Escape backslashes, double quotes and control characters so interpolated
+    # values (task text, commit messages) always produce valid JSON.
+    local s="$1"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\t'/\\t}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\n'/\\n}
+    printf '%s' "$s"
+}
+
 write_status() {
     local phase="$1"; shift
     local now
     now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     ( printf '{"phase":"%s","branch":"%s","task":"%s","started_at":"%s"}\n' \
-        "$phase" "$WORKTREE_BRANCH" "$AGENT_TASK" "${AGENT_STARTED_AT:-${now}}" \
+        "$phase" "$(json_escape "$WORKTREE_BRANCH")" "$(json_escape "$AGENT_TASK")" \
+        "${AGENT_STARTED_AT:-${now}}" \
         > "${AGENT_DIR}/status.json" ) 2>/dev/null || true
 }
 
@@ -166,9 +179,9 @@ run_agent() {
   "exit_code": %d,
   "commits": %s,
   "last_commit": "%s"
-}\n' "$final_phase" "$WORKTREE_BRANCH" "$AGENT_TASK" \
+}\n' "$final_phase" "$(json_escape "$WORKTREE_BRANCH")" "$(json_escape "$AGENT_TASK")" \
      "$AGENT_STARTED_AT" "$finished_at" "$duration_secs" \
-     "$exit_code" "$commit_count" "$last_commit" \
+     "$exit_code" "$commit_count" "$(json_escape "$last_commit")" \
      > "$AGENT_DIR/status.json" ) 2>/dev/null || true
 
     emit_marker "$final_phase" "EXIT_CODE=${exit_code}" "COMMITS=${commit_count}" "DURATION=${duration_secs}s"

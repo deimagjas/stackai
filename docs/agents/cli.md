@@ -13,7 +13,7 @@
 
 ```bash
 cd app/cli
-uv sync          # installs typer, rich, and the q entry point
+uv sync          # installs typer and the q entry point
 uv run q --help  # verify installation
 ```
 
@@ -82,6 +82,13 @@ q spawn --branch feat/quick-fix --task "Tighten the readme" --model sonnet
 | `--model` | no | Claude model the agent runs (`opus` default; e.g. `sonnet`, `haiku`) |
 
 Requires `CLAUDE_CONTAINER_OAUTH_TOKEN` to be set.
+
+> **Input validation:** every command that takes `--branch` rejects names
+> outside `[A-Za-z0-9._/-]`, names not starting with an alphanumeric, and any
+> name containing `..` — this blocks flag injection, absolute paths, and path
+> traversal before the value reaches `make`. `--task` must be non-empty and
+> contain no control characters (newlines, tabs, NUL). `status` additionally
+> verifies the resolved path stays inside `$AGENTS_HOME`.
 
 > **Agent model:** the agent runs `opus` unless `--model` says otherwise. It
 > does **not** inherit the host's `~/.claude/settings.json` `model` preference —

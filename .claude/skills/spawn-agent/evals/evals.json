@@ -32,11 +32,11 @@
     {
       "id": 3,
       "prompt": "Show me what agents are currently running. Also list the worktrees that exist.",
-      "expected_output": "Claude runs container list filtered by the project prefix (qubits-team), and also lists the worktrees directory. Shows the results in a readable format.",
+      "expected_output": "Claude runs container list filtered by the project prefix (basename of the git root, e.g. stackai), and also lists the worktrees directory. Shows the results in a readable format.",
       "files": [],
       "expectations": [
         "Runs `container list` (not `container ps` or other docker-style commands)",
-        "Filters output by project prefix (e.g., grep qubits-team)",
+        "Filters output by project prefix (basename of git root, e.g., grep stackai)",
         "Also shows worktrees on disk (ls on WORKTREES_DIR or equivalent)",
         "Does NOT attempt to spawn a new agent"
       ]

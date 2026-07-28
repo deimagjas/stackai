@@ -147,8 +147,7 @@ make stop-agent BRANCH=feat/oauth2     # stop when done
 ```
 stackai/
 ├── app/
-│   ├── cli/                  # Python CLI (q command)
-│   └── agents-templates/     # Agent template examples
+│   └── cli/                  # Python CLI (q command)
 ├── config/
 │   ├── Dockerfile.wolfi      # Production image (ARM64, glibc)
 │   ├── Dockerfile            # CI image (Alpine, amd64)
@@ -161,8 +160,7 @@ stackai/
 │   ├── setup.md              # Authentication guide
 │   ├── evals.md              # Evaluation framework
 │   └── cli.md                # CLI command reference
-├── iac/                      # Infrastructure as Code
-└── model/                    # ML fine-tuning experiments
+└── iac/                      # Infrastructure as Code
 ```
 
 ## How it works

@@ -14,6 +14,8 @@ from container_cli.utils import (
     makefile_dir,
     print_agent_status,
     run_make,
+    validate_branch,
+    validate_task,
 )
 
 # ---------- find_git_root ----------
@@ -155,6 +157,66 @@ class TestAgentsHome:
             assert agents_home() == Path("/home/user/.worktrees")
 
 
+# ---------- validate_branch ----------
+
+
+class TestValidateBranch:
+    @pytest.mark.parametrize(
+        "branch",
+        ["feat/foo", "pi/refactor", "fix/issue-42", "release/v1.2.3", "main", "feat_underscore"],
+    )
+    def test_accepts_normal_branch_names(self, branch: str):
+        validate_branch(branch)  # should not raise
+
+    @pytest.mark.parametrize(
+        "branch",
+        [
+            "",
+            "feat;rm -rf x",
+            "feat && evil",
+            "feat foo",
+            "feat`id`",
+            "feat$(id)",
+            "feat\nbar",
+            "../escape",
+            "feat/../../escape",
+            "-evil",
+            "--upload-pack=evil",
+            "/absolute",
+            ".hidden",
+        ],
+    )
+    def test_rejects_malicious_or_malformed_names(self, branch: str, capsys):
+        with pytest.raises(typer.Exit) as exc_info:
+            validate_branch(branch)
+        assert exc_info.value.exit_code == 1
+        err = capsys.readouterr().err
+        assert "invalid branch" in err
+
+
+# ---------- validate_task ----------
+
+
+class TestValidateTask:
+    @pytest.mark.parametrize(
+        "task",
+        ["implement feature X", "rename ambiguous helpers", "fix bug #42 (edge-case: 'quotes')"],
+    )
+    def test_accepts_normal_task_text(self, task: str):
+        validate_task(task)  # should not raise
+
+    @pytest.mark.parametrize(
+        "task",
+        ["", "line1\nline2", "task\rcarriage", "tab\there", "nul\x00byte"],
+    )
+    def test_rejects_empty_or_control_characters(self, task: str, capsys):
+        with pytest.raises(typer.Exit) as exc_info:
+            validate_task(task)
+        assert exc_info.value.exit_code == 1
+        err = capsys.readouterr().err
+        assert "invalid task" in err
+
+
 # ---------- print_agent_status ----------
 
 
@@ -185,3 +247,27 @@ class TestPrintAgentStatus:
         with pytest.raises(typer.Exit):
             print_agent_status("feat-x", label="pi-status")
         assert "[pi-status]" in capsys.readouterr().out
+
+    def test_rejects_branch_escaping_agents_home(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path / "worktrees"))
+        outside = tmp_path / "outside" / ".agent" / "status.json"
+        outside.parent.mkdir(parents=True)
+        outside.write_text('{"phase": "completed"}')
+        with pytest.raises(typer.Exit) as exc_info:
+            print_agent_status("../outside", label="status")
+        assert exc_info.value.exit_code == 1
+        captured = capsys.readouterr()
+        assert "invalid branch" in captured.err
+        assert "completed" not in captured.out
+
+    def test_allows_branch_with_slash_inside_agents_home(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        monkeypatch.setenv("AGENTS_HOME", str(tmp_path))
+        status_file = tmp_path / "feat" / "foo" / ".agent" / "status.json"
+        status_file.parent.mkdir(parents=True)
+        status_file.write_text('{"phase": "working"}')
+        print_agent_status("feat/foo", label="status")
+        assert "working" in capsys.readouterr().out

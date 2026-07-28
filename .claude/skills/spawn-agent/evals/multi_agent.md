@@ -22,7 +22,7 @@ User says:
 4. Launches 3 `container run -d` commands sequentially
 5. Lists all 3 containers at the end with:
    ```bash
-   container list | grep "qubits-team"
+   container list | grep "<project-name>"   # basename of git root, e.g. stackai
    ```
 6. Tells user how to monitor each one
 

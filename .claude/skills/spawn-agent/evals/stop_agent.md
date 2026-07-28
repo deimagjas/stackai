@@ -14,7 +14,7 @@ User says:
 
 1. Skill triggers
 2. Sanitizes branch for container name: `feat-jwt-auth`
-3. Runs: `container stop qubits-team-feat-jwt-auth`
+3. Runs: `container stop <project-name>-feat-jwt-auth` (e.g. `stackai-feat-jwt-auth`)
 4. If user asked to clean worktree, also runs:
    ```bash
    git -C <git-root> worktree remove --force <worktrees-dir>/feat/jwt-auth

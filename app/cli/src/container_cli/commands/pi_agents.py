@@ -8,14 +8,12 @@ Open/Closed: this module is a pure extension. The existing agents.py and
 build.py are not modified — pi commands live under their own subapp.
 """
 
-from __future__ import annotations
-
 from typing import Annotated
 
 import typer
 
 from container_cli.targets import Target
-from container_cli.utils import print_agent_status, run_make
+from container_cli.utils import print_agent_status, run_make, validate_branch, validate_task
 
 app = typer.Typer(help="PI agent lifecycle (local mlx_lm.server backend)")
 
@@ -63,6 +61,8 @@ def spawn(
     The mlx_lm.server must be running on the host. Check with:
         uv run iac server status
     """
+    validate_branch(branch)
+    validate_task(task)
     typer.echo(
         "[pi] reminder: ensure mlx_lm.server is running (`uv run iac server status` from /iac)"
     )
@@ -91,6 +91,7 @@ def logs(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Show logs for a PI agent (live container or persisted log)."""
+    validate_branch(branch)
     run_make(Target.LOGS_PI_AGENT, {"BRANCH": branch})
 
 
@@ -99,6 +100,7 @@ def follow(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Follow live streaming logs for a PI agent."""
+    validate_branch(branch)
     run_make(Target.FOLLOW_PI_AGENT, {"BRANCH": branch}, tty=True)
 
 
@@ -107,6 +109,7 @@ def stop(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Stop a PI agent container."""
+    validate_branch(branch)
     run_make(Target.STOP_PI_AGENT, {"BRANCH": branch})
 
 
@@ -115,4 +118,5 @@ def status(
     branch: Annotated[str, typer.Option("--branch", help="PI agent branch name")],
 ) -> None:
     """Show PI agent status from persisted status.json file."""
+    validate_branch(branch)
     print_agent_status(branch, label="pi-status")
